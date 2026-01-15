@@ -33,8 +33,9 @@ type Psychologist struct {
 }
 
 type ScheduleConfig struct {
-	ID        int64 `json:"id"`
-	DayOfWeek int64 `json:"day_of_week"`
-	StartHour int64 `json:"start_hour"`
-	EndHour   int64 `json:"end_hour"`
+	ID             int64 `json:"id"`
+	PsychologistID int64 `json:"psychologist_id"`
+	DayOfWeek      int64 `json:"day_of_week"`
+	StartHour      int64 `json:"start_hour"`
+	EndHour        int64 `json:"end_hour"`
 }

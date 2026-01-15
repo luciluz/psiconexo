@@ -7,7 +7,64 @@ package db
 
 import (
 	"context"
+	"database/sql"
 )
+
+const createPatient = `-- name: CreatePatient :one
+INSERT INTO patients (name, email, phone, psychologist_id)
+VALUES (?, ?, ?, ?)
+RETURNING id, name, psychologist_id, email, phone, created_at
+`
+
+type CreatePatientParams struct {
+	Name           string         `json:"name"`
+	Email          string         `json:"email"`
+	Phone          sql.NullString `json:"phone"`
+	PsychologistID int64          `json:"psychologist_id"`
+}
+
+func (q *Queries) CreatePatient(ctx context.Context, arg CreatePatientParams) (Patient, error) {
+	row := q.db.QueryRowContext(ctx, createPatient,
+		arg.Name,
+		arg.Email,
+		arg.Phone,
+		arg.PsychologistID,
+	)
+	var i Patient
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.PsychologistID,
+		&i.Email,
+		&i.Phone,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const createPsychologist = `-- name: CreatePsychologist :one
+INSERT INTO psychologists (name, email, phone)
+VALUES (?, ?, ?)
+RETURNING id, name, email, phone
+`
+
+type CreatePsychologistParams struct {
+	Name  string         `json:"name"`
+	Email string         `json:"email"`
+	Phone sql.NullString `json:"phone"`
+}
+
+func (q *Queries) CreatePsychologist(ctx context.Context, arg CreatePsychologistParams) (Psychologist, error) {
+	row := q.db.QueryRowContext(ctx, createPsychologist, arg.Name, arg.Email, arg.Phone)
+	var i Psychologist
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.Phone,
+	)
+	return i, err
+}
 
 const listPatients = `-- name: ListPatients :many
 SELECT id, name, psychologist_id, email, phone, created_at FROM patients

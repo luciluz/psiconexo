@@ -26,8 +26,10 @@ CREATE TABLE appointments (
 
 CREATE TABLE schedule_configs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    psychologist_id INTEGER NOT NULL,
     day_of_week INTEGER NOT NULL,
     start_hour INTEGER NOT NULL,
     end_hour INTEGER NOT NULL,
+    FOREIGN KEY (psychologist_id) REFERENCES psychologists(id),
     UNIQUE(day_of_week)
 );
