@@ -33,5 +33,5 @@ CREATE TABLE IF NOT EXISTS schedule_configs (
     start_hour INTEGER NOT NULL,
     end_hour INTEGER NOT NULL,
     FOREIGN KEY (psychologist_id) REFERENCES psychologists(id),
-    UNIQUE(day_of_week)
+    UNIQUE(psychologist_id, day_of_week)
 );
