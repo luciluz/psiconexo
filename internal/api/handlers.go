@@ -124,3 +124,54 @@ func (h *Handler) CreateAppointment(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, appt)
 }
+
+// ListAppointments maneja la petición GET /appointments
+func (h *Handler) ListAppointments(c *gin.Context) {
+	// 1. Leer parámetros de la URL (Query Params)
+	// Ejemplo de URL: /appointments?psychologist_id=1&start_date=2026-01-20&end_date=2026-01-27
+
+	psyIDStr := c.Query("psychologist_id")
+	startStr := c.Query("start_date")
+	endStr := c.Query("end_date")
+
+	if psyIDStr == "" || startStr == "" || endStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "faltan parámetros requeridos: psychologist_id, start_date, end_date"})
+		return
+	}
+
+	// 2. Convertir string a int64 (ID)
+	// (Necesitamos strconv para esto, asegúrate de importarlo arriba si Go no lo hace solo)
+	// Ojo: En Go moderno, Gin no convierte tipos automáticamente en Query Params tan fácil sin structs,
+	// así que haremos una conversión manual rápida o usaremos BindQuery.
+	// Para simplificar y ser explícitos:
+
+	var req struct {
+		PsychologistID int64  `form:"psychologist_id" binding:"required"`
+		StartDate      string `form:"start_date" binding:"required"`
+		EndDate        string `form:"end_date" binding:"required"`
+	}
+
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "parametros inválidos: " + err.Error()})
+		return
+	}
+
+	// 3. Convertir fechas
+	layout := "2006-01-02"
+	start, err1 := time.Parse(layout, req.StartDate)
+	end, err2 := time.Parse(layout, req.EndDate)
+
+	if err1 != nil || err2 != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "formato de fecha inválido (use YYYY-MM-DD)"})
+		return
+	}
+
+	// 4. Llamar al servicio
+	appts, err := h.svc.ListAppointments(c.Request.Context(), req.PsychologistID, start, end)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, appts)
+}

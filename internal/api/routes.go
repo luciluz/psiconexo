@@ -16,6 +16,7 @@ func NewRouter(h *Handler) *gin.Engine {
 
 		// Agenda
 		v1.POST("/appointments", h.CreateAppointment)
+		v1.GET("/appointments", h.ListAppointments)
 	}
 
 	return r

@@ -78,3 +78,17 @@ func (s *Service) CreateAppointment(ctx context.Context, req CreateAppointmentRe
 
 	return &appt, nil
 }
+
+// ListAppointments devuelve los turnos dentro de un rango de fechas.
+func (s *Service) ListAppointments(ctx context.Context, psyID int64, start, end time.Time) ([]db.ListAppointmentsInDateRangeRow, error) {
+	// Llamamos a la query que ya definimos en SQL hace días
+	appts, err := s.queries.ListAppointmentsInDateRange(ctx, db.ListAppointmentsInDateRangeParams{
+		PsychologistID: psyID,
+		Date:           start,
+		Date_2:         end,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error obteniendo agenda: %w", err)
+	}
+	return appts, nil
+}

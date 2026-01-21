@@ -35,7 +35,7 @@ func main() {
 	r := api.NewRouter(handler)
 
 	// 4. Arrancar Servidor
-	log.Println("🚀 Servidor corriendo en http://localhost:8080")
+	log.Println("Servidor corriendo en http://localhost:8080")
 	if err := r.Run(":8080"); err != nil {
 		log.Fatal(err)
 	}
