@@ -8,8 +8,7 @@ import (
 	"github.com/luciluz/psiconexo/internal/db"
 )
 
-// --- Psicólogos ---
-
+// DTO (Data Transfer Object)
 type CreatePsychologistRequest struct {
 	Name                    string
 	Email                   string
