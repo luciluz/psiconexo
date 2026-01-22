@@ -4,6 +4,7 @@ import "github.com/gin-gonic/gin"
 
 func NewRouter(h *Handler) *gin.Engine {
 	r := gin.Default()
+	r.Use(CorsMiddleware())
 
 	// Middleware básico (Logger y Recovery ya vienen en Default)
 
