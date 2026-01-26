@@ -55,3 +55,11 @@ func (s *Service) CreatePatient(ctx context.Context, req CreatePatientRequest) (
 	}
 	return &pat, nil
 }
+
+func (s *Service) ListPsychologists(ctx context.Context) ([]db.ListPsychologistsRow, error) {
+	psy, err := s.queries.ListPsychologists(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error listando pacientes: %w", err)
+	}
+	return psy, nil
+}

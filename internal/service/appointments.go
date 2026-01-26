@@ -19,6 +19,7 @@ type CreateAppointmentRequest struct {
 }
 
 // CheckAvailability verifica si el hueco está libre en memoria
+// TODO: se podría hacer la verificación de fechas en SQL?
 func (s *Service) CheckAvailability(ctx context.Context, psyID int64, date time.Time, newStartStr string, duration int) error {
 	// 1. Traer todos los turnos confirmados de ese día
 	existingAppts, err := s.queries.GetDayAppointments(ctx, db.GetDayAppointmentsParams{

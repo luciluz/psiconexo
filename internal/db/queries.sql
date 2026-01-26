@@ -13,6 +13,10 @@ SELECT id, cancellation_window_hours
 FROM psychologists 
 WHERE id = ?;
 
+-- name: ListPsychologists :many
+SELECT id, name, email, phone
+FROM psychologists;
+
 
 -- SECTION: Patients
 -- name: CreatePatient :one

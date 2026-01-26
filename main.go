@@ -15,6 +15,7 @@ func main() {
 	// 1. Inicializar DB
 	// Nota: Si no existe el archivo, SQLite lo crea, pero necesitamos correr el schema manualmente
 	// la primera vez o usar migraciones. Para dev rápido, asumo que ya tienes psiconexo.db
+
 	conn, err := sql.Open("sqlite3", "./psiconexo.db")
 	if err != nil {
 		log.Fatal(err)

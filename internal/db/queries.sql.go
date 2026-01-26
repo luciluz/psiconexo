@@ -466,6 +466,46 @@ func (q *Queries) ListPatients(ctx context.Context, psychologistID int64) ([]Pat
 	return items, nil
 }
 
+const listPsychologists = `-- name: ListPsychologists :many
+SELECT id, name, email, phone
+FROM psychologists
+`
+
+type ListPsychologistsRow struct {
+	ID    int64          `json:"id"`
+	Name  string         `json:"name"`
+	Email string         `json:"email"`
+	Phone sql.NullString `json:"phone"`
+}
+
+func (q *Queries) ListPsychologists(ctx context.Context) ([]ListPsychologistsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPsychologists)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPsychologistsRow
+	for rows.Next() {
+		var i ListPsychologistsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Email,
+			&i.Phone,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRecurringSlots = `-- name: ListRecurringSlots :many
 SELECT r.id, r.psychologist_id, r.patient_id, r.day_of_week, r.start_time, r.duration_minutes, r.created_at, p.name as patient_name
 FROM recurring_slots r

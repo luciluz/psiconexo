@@ -13,6 +13,7 @@ func NewRouter(h *Handler) *gin.Engine {
 	{
 		// Usuarios
 		v1.POST("/psychologists", h.CreatePsychologist)
+		v1.GET("/psychologists", h.ListPsychologists)
 		v1.POST("/patients", h.CreatePatient)
 
 		// Agenda

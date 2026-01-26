@@ -125,6 +125,16 @@ func (h *Handler) CreateAppointment(c *gin.Context) {
 	c.JSON(http.StatusCreated, appt)
 }
 
+func (h *Handler) ListPsychologists(c *gin.Context) {
+	appts, err := h.svc.ListPsychologists(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, appts)
+}
+
 // ListAppointments maneja la petición GET /appointments
 func (h *Handler) ListAppointments(c *gin.Context) {
 	// 1. Leer parámetros de la URL (Query Params)
