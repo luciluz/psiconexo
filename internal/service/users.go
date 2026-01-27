@@ -63,3 +63,11 @@ func (s *Service) ListPsychologists(ctx context.Context) ([]db.ListPsychologists
 	}
 	return psy, nil
 }
+
+func (s *Service) ListPatients(ctx context.Context, psychologistID int64) ([]db.Patient, error) {
+	patients, err := s.queries.ListPatients(ctx, psychologistID)
+	if err != nil {
+		return nil, fmt.Errorf("error listando pacientes para psicólogo %d: %w", psychologistID, err)
+	}
+	return patients, nil
+}

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/luciluz/psiconexo/internal/db"
 	"github.com/luciluz/psiconexo/internal/service"
 )
 
@@ -133,6 +134,35 @@ func (h *Handler) ListPsychologists(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, appts)
+}
+
+func (h *Handler) ListPatients(c *gin.Context) {
+	// 1. Definimos la estructura de lo que esperamos recibir
+	// Gin leerá "psychologist_id" de la URL y tratará de meterlo en un int64
+	var req struct {
+		PsychologistID int64 `form:"psychologist_id" binding:"required"`
+	}
+
+	// 2. Gin hace la magia (validación y conversión)
+	// Si falla (ej: mandan texto en vez de número), devuelve error automáticamente
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "psychologist_id es inválido o requerido"})
+		return
+	}
+
+	// 3. Llamar al servicio (usamos req.PsychologistID que ya es int64)
+	patients, err := h.svc.ListPatients(c.Request.Context(), req.PsychologistID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch patients"})
+		return
+	}
+
+	// 4. Responder con array vacío si es null
+	if patients == nil {
+		patients = []db.Patient{}
+	}
+
+	c.JSON(http.StatusOK, patients)
 }
 
 // ListAppointments maneja la petición GET /appointments

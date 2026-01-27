@@ -15,6 +15,7 @@ func NewRouter(h *Handler) *gin.Engine {
 		v1.POST("/psychologists", h.CreatePsychologist)
 		v1.GET("/psychologists", h.ListPsychologists)
 		v1.POST("/patients", h.CreatePatient)
+		v1.GET("/patients", h.ListPatients)
 
 		// Agenda
 		v1.POST("/appointments", h.CreateAppointment)
