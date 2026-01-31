@@ -17,6 +17,14 @@ type CreateAppointmentRequest struct {
 	Duration       int
 }
 
+type CreateRecurringSlotRequest struct {
+	PsychologistID int64
+	PatientID      int64
+	DayOfWeek      int
+	StartTime      string
+	Duration       int
+}
+
 func (s *Service) CheckAvailability(ctx context.Context, psyID int64, date time.Time, newStartStr string, duration int) error {
 	existingAppts, err := s.queries.GetDayAppointments(ctx, db.GetDayAppointmentsParams{
 		PsychologistID: psyID,
@@ -78,14 +86,6 @@ func (s *Service) ListAppointments(ctx context.Context, psyID int64, start, end 
 		return nil, fmt.Errorf("error obteniendo agenda: %w", err)
 	}
 	return appts, nil
-}
-
-type CreateRecurringSlotRequest struct {
-	PsychologistID int64
-	PatientID      int64
-	DayOfWeek      int
-	StartTime      string
-	Duration       int
 }
 
 func (s *Service) CreateRecurringSlot(ctx context.Context, req CreateRecurringSlotRequest) (*db.RecurringSlot, error) {

@@ -8,7 +8,6 @@ import (
 	"github.com/luciluz/psiconexo/internal/db"
 )
 
-// DTO (Data Transfer Object)
 type CreatePsychologistRequest struct {
 	Name                    string
 	Email                   string
@@ -16,8 +15,14 @@ type CreatePsychologistRequest struct {
 	CancellationWindowHours int
 }
 
+type CreatePatientRequest struct {
+	Name           string
+	Email          string
+	Phone          string
+	PsychologistID int64
+}
+
 func (s *Service) CreatePsychologist(ctx context.Context, req CreatePsychologistRequest) (*db.Psychologist, error) {
-	// Aquí podrías validar formato de email, etc.
 
 	psy, err := s.queries.CreatePsychologist(ctx, db.CreatePsychologistParams{
 		Name:                    req.Name,
@@ -31,18 +36,7 @@ func (s *Service) CreatePsychologist(ctx context.Context, req CreatePsychologist
 	return &psy, nil
 }
 
-// --- Pacientes ---
-
-type CreatePatientRequest struct {
-	Name           string
-	Email          string
-	Phone          string
-	PsychologistID int64
-}
-
 func (s *Service) CreatePatient(ctx context.Context, req CreatePatientRequest) (*db.Patient, error) {
-	// Validación básica: Verificar si el psicólogo existe antes de intentar insertar
-	// (Aunque la FK lo atrapa, a veces es mejor checkearlo antes para dar un error más lindo)
 
 	pat, err := s.queries.CreatePatient(ctx, db.CreatePatientParams{
 		Name:           req.Name,
