@@ -9,8 +9,6 @@ import (
 	"github.com/luciluz/psiconexo/internal/service"
 )
 
-// Handler agrupa todos los endpoints.
-// Usa inyección de dependencias para acceder al Service.
 type Handler struct {
 	svc *service.Service
 }
@@ -18,10 +16,6 @@ type Handler struct {
 func NewHandler(svc *service.Service) *Handler {
 	return &Handler{svc: svc}
 }
-
-// --- DTOs (Data Transfer Objects) ---
-// Definimos structs locales para leer el JSON.
-// No usamos los del service directamente para desacoplar el formato de entrada (string) del tipo de dato interno (time.Time).
 
 type createPsychologistDTO struct {
 	Name                    string `json:"name" binding:"required"`
@@ -40,12 +34,18 @@ type createPatientDTO struct {
 type createAppointmentDTO struct {
 	PsychologistID int64  `json:"psychologist_id" binding:"required"`
 	PatientID      int64  `json:"patient_id" binding:"required"`
-	Date           string `json:"date" binding:"required"`       // Recibimos "YYYY-MM-DD"
-	StartTime      string `json:"start_time" binding:"required"` // "HH:MM"
-	Duration       int    `json:"duration" binding:"required"`
+	Date           string `json:"date" binding:"required"`
+	StartTime      string `json:"start_time" binding:"required"`
+	Duration       int    `json:"duration" binding:"required,gt=0"`
 }
 
-// --- Métodos Handler ---
+type createRecurringSlotDTO struct {
+	PsychologistID int64  `json:"psychologist_id" binding:"required"`
+	PatientID      int64  `json:"patient_id" binding:"required"`
+	DayOfWeek      int    `json:"day_of_week" binding:"required,min=1,max=7"`
+	StartTime      string `json:"start_time" binding:"required"`
+	Duration       int    `json:"duration" binding:"required,gt=0"`
+}
 
 func (h *Handler) CreatePsychologist(c *gin.Context) {
 	var req createPsychologistDTO
@@ -54,7 +54,6 @@ func (h *Handler) CreatePsychologist(c *gin.Context) {
 		return
 	}
 
-	// Llamada al servicio
 	psy, err := h.svc.CreatePsychologist(c.Request.Context(), service.CreatePsychologistRequest{
 		Name:                    req.Name,
 		Email:                   req.Email,
@@ -63,7 +62,6 @@ func (h *Handler) CreatePsychologist(c *gin.Context) {
 	})
 
 	if err != nil {
-		// Aquí podrías diferenciar errores (ej: duplicado vs error interno)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -100,14 +98,12 @@ func (h *Handler) CreateAppointment(c *gin.Context) {
 		return
 	}
 
-	// 1. Convertir fecha de string a time.Time
 	parsedDate, err := time.Parse("2006-01-02", req.Date)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "formato de fecha inválido, use YYYY-MM-DD"})
 		return
 	}
 
-	// 2. Llamar al servicio (que hará la validación de colisiones)
 	appt, err := h.svc.CreateAppointment(c.Request.Context(), service.CreateAppointmentRequest{
 		PsychologistID: req.PsychologistID,
 		PatientID:      req.PatientID,
@@ -117,8 +113,6 @@ func (h *Handler) CreateAppointment(c *gin.Context) {
 	})
 
 	if err != nil {
-		// Si es error de colisión, idealmente devolveríamos 409 Conflict.
-		// Por ahora devolvemos 400/500 genérico.
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -137,27 +131,21 @@ func (h *Handler) ListPsychologists(c *gin.Context) {
 }
 
 func (h *Handler) ListPatients(c *gin.Context) {
-	// 1. Definimos la estructura de lo que esperamos recibir
-	// Gin leerá "psychologist_id" de la URL y tratará de meterlo en un int64
 	var req struct {
 		PsychologistID int64 `form:"psychologist_id" binding:"required"`
 	}
 
-	// 2. Gin hace la magia (validación y conversión)
-	// Si falla (ej: mandan texto en vez de número), devuelve error automáticamente
 	if err := c.ShouldBindQuery(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "psychologist_id es inválido o requerido"})
 		return
 	}
 
-	// 3. Llamar al servicio (usamos req.PsychologistID que ya es int64)
 	patients, err := h.svc.ListPatients(c.Request.Context(), req.PsychologistID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch patients"})
 		return
 	}
 
-	// 4. Responder con array vacío si es null
 	if patients == nil {
 		patients = []db.Patient{}
 	}
@@ -165,10 +153,7 @@ func (h *Handler) ListPatients(c *gin.Context) {
 	c.JSON(http.StatusOK, patients)
 }
 
-// ListAppointments maneja la petición GET /appointments
 func (h *Handler) ListAppointments(c *gin.Context) {
-	// 1. Leer parámetros de la URL (Query Params)
-	// Ejemplo de URL: /appointments?psychologist_id=1&start_date=2026-01-20&end_date=2026-01-27
 
 	psyIDStr := c.Query("psychologist_id")
 	startStr := c.Query("start_date")
@@ -178,12 +163,6 @@ func (h *Handler) ListAppointments(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "faltan parámetros requeridos: psychologist_id, start_date, end_date"})
 		return
 	}
-
-	// 2. Convertir string a int64 (ID)
-	// (Necesitamos strconv para esto, asegúrate de importarlo arriba si Go no lo hace solo)
-	// Ojo: En Go moderno, Gin no convierte tipos automáticamente en Query Params tan fácil sin structs,
-	// así que haremos una conversión manual rápida o usaremos BindQuery.
-	// Para simplificar y ser explícitos:
 
 	var req struct {
 		PsychologistID int64  `form:"psychologist_id" binding:"required"`
@@ -196,7 +175,6 @@ func (h *Handler) ListAppointments(c *gin.Context) {
 		return
 	}
 
-	// 3. Convertir fechas
 	layout := "2006-01-02"
 	start, err1 := time.Parse(layout, req.StartDate)
 	end, err2 := time.Parse(layout, req.EndDate)
@@ -206,7 +184,6 @@ func (h *Handler) ListAppointments(c *gin.Context) {
 		return
 	}
 
-	// 4. Llamar al servicio
 	appts, err := h.svc.ListAppointments(c.Request.Context(), req.PsychologistID, start, end)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -214,4 +191,28 @@ func (h *Handler) ListAppointments(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, appts)
+}
+
+func (h *Handler) CreateRecurringSlot(c *gin.Context) {
+
+	var req createRecurringSlotDTO
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	slot, err := h.svc.CreateRecurringSlot(c.Request.Context(), service.CreateRecurringSlotRequest{
+		PsychologistID: req.PsychologistID,
+		PatientID:      req.PatientID,
+		DayOfWeek:      req.DayOfWeek,
+		StartTime:      req.StartTime,
+		Duration:       req.Duration,
+	})
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, slot)
 }

@@ -6,9 +6,6 @@ func NewRouter(h *Handler) *gin.Engine {
 	r := gin.Default()
 	r.Use(CorsMiddleware())
 
-	// Middleware básico (Logger y Recovery ya vienen en Default)
-
-	// Grupo de rutas API v1
 	v1 := r.Group("/api/v1")
 	{
 		// Usuarios
@@ -20,6 +17,9 @@ func NewRouter(h *Handler) *gin.Engine {
 		// Agenda
 		v1.POST("/appointments", h.CreateAppointment)
 		v1.GET("/appointments", h.ListAppointments)
+
+		// Horarios fijos
+		v1.POST("/recurring-slots", h.CreateRecurringSlot)
 	}
 
 	return r
