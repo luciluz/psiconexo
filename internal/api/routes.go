@@ -26,6 +26,15 @@ func NewRouter(h *Handler) *gin.Engine {
 		// Bloques de trabajo (Disponibilidad / Configuración)
 		v1.POST("/schedule", h.UpdateSchedule)
 		v1.GET("/schedule", h.ListSchedule)
+
+		// Configuración Avanzada (Settings)
+		v1.PUT("/settings", h.UpdateSettings)
+		v1.GET("/settings", h.GetSettings)
+
+		// Notas Clínicas (Historia Clínica)
+		v1.POST("/clinical-notes", h.CreateClinicalNote)
+		v1.GET("/clinical-notes", h.ListClinicalNotes)
+		v1.PUT("/clinical-notes/:id", h.UpdateClinicalNote) // Nota el :id en la URL
 	}
 
 	return r

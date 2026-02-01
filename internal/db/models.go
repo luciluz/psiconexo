@@ -16,6 +16,7 @@ type Appointment struct {
 	Date              time.Time      `json:"date"`
 	StartTime         string         `json:"start_time"`
 	DurationMinutes   int32          `json:"duration_minutes"`
+	Notes             sql.NullString `json:"notes"`
 	Price             sql.NullString `json:"price"`
 	Status            sql.NullString `json:"status"`
 	RescheduledFromID sql.NullInt64  `json:"rescheduled_from_id"`
@@ -34,6 +35,17 @@ type Client struct {
 	CreatedAt      sql.NullTime   `json:"created_at"`
 }
 
+type ClinicalNote struct {
+	ID             int64         `json:"id"`
+	ProfessionalID int64         `json:"professional_id"`
+	ClientID       int64         `json:"client_id"`
+	AppointmentID  sql.NullInt64 `json:"appointment_id"`
+	Content        string        `json:"content"`
+	IsEncrypted    sql.NullBool  `json:"is_encrypted"`
+	CreatedAt      sql.NullTime  `json:"created_at"`
+	UpdatedAt      sql.NullTime  `json:"updated_at"`
+}
+
 type Professional struct {
 	ID                      int64          `json:"id"`
 	Name                    string         `json:"name"`
@@ -41,6 +53,16 @@ type Professional struct {
 	Phone                   sql.NullString `json:"phone"`
 	CancellationWindowHours sql.NullInt32  `json:"cancellation_window_hours"`
 	CreatedAt               sql.NullTime   `json:"created_at"`
+}
+
+type ProfessionalSetting struct {
+	ProfessionalID         int64         `json:"professional_id"`
+	DefaultDurationMinutes sql.NullInt32 `json:"default_duration_minutes"`
+	BufferMinutes          sql.NullInt32 `json:"buffer_minutes"`
+	TimeIncrementMinutes   sql.NullInt32 `json:"time_increment_minutes"`
+	MinBookingNoticeHours  sql.NullInt32 `json:"min_booking_notice_hours"`
+	MaxDailyAppointments   sql.NullInt32 `json:"max_daily_appointments"`
+	UpdatedAt              sql.NullTime  `json:"updated_at"`
 }
 
 type RecurringRule struct {

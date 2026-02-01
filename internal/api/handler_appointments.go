@@ -14,7 +14,8 @@ type createAppointmentDTO struct {
 	Date           string  `json:"date" binding:"required"`
 	StartTime      string  `json:"start_time" binding:"required"`
 	Duration       int     `json:"duration" binding:"required,gt=0"`
-	Price          float64 `json:"price"` // Nuevo campo opcional (puede ser 0)
+	Price          float64 `json:"price"`
+	Notes          string  `json:"notes"`
 }
 
 type createRecurringRuleDTO struct {
@@ -46,7 +47,8 @@ func (h *Handler) CreateAppointment(c *gin.Context) {
 		Date:           parsedDate,
 		StartTime:      req.StartTime,
 		Duration:       req.Duration,
-		Price:          req.Price, // Pasamos el precio
+		Price:          req.Price,
+		Notes:          req.Notes,
 	})
 
 	if err != nil {

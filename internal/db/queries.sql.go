@@ -25,7 +25,6 @@ type CheckAppointmentExistsForRuleParams struct {
 	Column2         time.Time     `json:"column_2"`
 }
 
-// Query auxiliar
 func (q *Queries) CheckAppointmentExistsForRule(ctx context.Context, arg CheckAppointmentExistsForRuleParams) (bool, error) {
 	row := q.db.QueryRowContext(ctx, checkAppointmentExistsForRule, arg.RecurringRuleID, arg.Column2)
 	var exists bool
@@ -36,10 +35,10 @@ func (q *Queries) CheckAppointmentExistsForRule(ctx context.Context, arg CheckAp
 const createAppointment = `-- name: CreateAppointment :one
 
 INSERT INTO appointments (
-    professional_id, client_id, date, start_time, duration_minutes, price, status, rescheduled_from_id, recurring_rule_id
+    professional_id, client_id, date, start_time, duration_minutes, price, notes, status, rescheduled_from_id, recurring_rule_id
 )
-VALUES ($1, $2, $3, $4, $5, $6, 'scheduled', $7, $8)
-RETURNING id, professional_id, client_id, date, start_time, duration_minutes, price, status, rescheduled_from_id, recurring_rule_id, created_at, updated_at
+VALUES ($1, $2, $3, $4, $5, $6, $7, 'scheduled', $8, $9)
+RETURNING id, professional_id, client_id, date, start_time, duration_minutes, notes, price, status, rescheduled_from_id, recurring_rule_id, created_at, updated_at
 `
 
 type CreateAppointmentParams struct {
@@ -49,12 +48,13 @@ type CreateAppointmentParams struct {
 	StartTime         string         `json:"start_time"`
 	DurationMinutes   int32          `json:"duration_minutes"`
 	Price             sql.NullString `json:"price"`
+	Notes             sql.NullString `json:"notes"`
 	RescheduledFromID sql.NullInt64  `json:"rescheduled_from_id"`
 	RecurringRuleID   sql.NullInt64  `json:"recurring_rule_id"`
 }
 
 // SECTION: Appointments (Calendar)
-// Agregamos 'price' (que viene de la regla o del input manual)
+// UPDATE: Agregamos 'notes' y 'price'
 func (q *Queries) CreateAppointment(ctx context.Context, arg CreateAppointmentParams) (Appointment, error) {
 	row := q.db.QueryRowContext(ctx, createAppointment,
 		arg.ProfessionalID,
@@ -63,6 +63,7 @@ func (q *Queries) CreateAppointment(ctx context.Context, arg CreateAppointmentPa
 		arg.StartTime,
 		arg.DurationMinutes,
 		arg.Price,
+		arg.Notes,
 		arg.RescheduledFromID,
 		arg.RecurringRuleID,
 	)
@@ -74,6 +75,7 @@ func (q *Queries) CreateAppointment(ctx context.Context, arg CreateAppointmentPa
 		&i.Date,
 		&i.StartTime,
 		&i.DurationMinutes,
+		&i.Notes,
 		&i.Price,
 		&i.Status,
 		&i.RescheduledFromID,
@@ -99,8 +101,7 @@ type CreateClientParams struct {
 	Active         sql.NullBool   `json:"active"`
 }
 
-// SECTION: Clients (Antes Patients)
-// Nota: active se pasa explícitamente o se deja default en true
+// SECTION: Clients
 func (q *Queries) CreateClient(ctx context.Context, arg CreateClientParams) (Client, error) {
 	row := q.db.QueryRowContext(ctx, createClient,
 		arg.Name,
@@ -122,6 +123,44 @@ func (q *Queries) CreateClient(ctx context.Context, arg CreateClientParams) (Cli
 	return i, err
 }
 
+const createClinicalNote = `-- name: CreateClinicalNote :one
+
+INSERT INTO clinical_notes (professional_id, client_id, appointment_id, content, is_encrypted)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, professional_id, client_id, appointment_id, content, is_encrypted, created_at, updated_at
+`
+
+type CreateClinicalNoteParams struct {
+	ProfessionalID int64         `json:"professional_id"`
+	ClientID       int64         `json:"client_id"`
+	AppointmentID  sql.NullInt64 `json:"appointment_id"`
+	Content        string        `json:"content"`
+	IsEncrypted    sql.NullBool  `json:"is_encrypted"`
+}
+
+// SECTION: Clinical Notes (NUEVO - Privacidad)
+func (q *Queries) CreateClinicalNote(ctx context.Context, arg CreateClinicalNoteParams) (ClinicalNote, error) {
+	row := q.db.QueryRowContext(ctx, createClinicalNote,
+		arg.ProfessionalID,
+		arg.ClientID,
+		arg.AppointmentID,
+		arg.Content,
+		arg.IsEncrypted,
+	)
+	var i ClinicalNote
+	err := row.Scan(
+		&i.ID,
+		&i.ProfessionalID,
+		&i.ClientID,
+		&i.AppointmentID,
+		&i.Content,
+		&i.IsEncrypted,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const createProfessional = `-- name: CreateProfessional :one
 
 INSERT INTO professionals (name, email, phone, cancellation_window_hours)
@@ -136,7 +175,7 @@ type CreateProfessionalParams struct {
 	CancellationWindowHours sql.NullInt32  `json:"cancellation_window_hours"`
 }
 
-// SECTION: Professionals (Antes Psychologists)
+// SECTION: Professionals
 func (q *Queries) CreateProfessional(ctx context.Context, arg CreateProfessionalParams) (Professional, error) {
 	row := q.db.QueryRowContext(ctx, createProfessional,
 		arg.Name,
@@ -174,7 +213,6 @@ type CreateRecurringRuleParams struct {
 }
 
 // SECTION: Recurring Rules
-// Agregamos 'price' y 'start_date'. Active va fijo en TRUE al crear.
 func (q *Queries) CreateRecurringRule(ctx context.Context, arg CreateRecurringRuleParams) (RecurringRule, error) {
 	row := q.db.QueryRowContext(ctx, createRecurringRule,
 		arg.ProfessionalID,
@@ -215,7 +253,7 @@ type CreateScheduleConfigParams struct {
 	EndTime        string `json:"end_time"`
 }
 
-// SECTION: Schedule Configuration (Availability)
+// SECTION: Schedule Configuration
 func (q *Queries) CreateScheduleConfig(ctx context.Context, arg CreateScheduleConfigParams) (ScheduleConfig, error) {
 	row := q.db.QueryRowContext(ctx, createScheduleConfig,
 		arg.ProfessionalID,
@@ -252,7 +290,6 @@ WHERE r.professional_id = $1
   AND c.active = TRUE
 `
 
-// Usada por el worker. Solo trae reglas activas de clientes activos.
 func (q *Queries) GetActiveRecurringRules(ctx context.Context, professionalID int64) ([]RecurringRule, error) {
 	rows, err := q.db.QueryContext(ctx, getActiveRecurringRules, professionalID)
 	if err != nil {
@@ -288,7 +325,7 @@ func (q *Queries) GetActiveRecurringRules(ctx context.Context, professionalID in
 }
 
 const getAppointment = `-- name: GetAppointment :one
-SELECT id, professional_id, client_id, date, start_time, duration_minutes, price, status, rescheduled_from_id, recurring_rule_id, created_at, updated_at FROM appointments WHERE id = $1 LIMIT 1
+SELECT id, professional_id, client_id, date, start_time, duration_minutes, notes, price, status, rescheduled_from_id, recurring_rule_id, created_at, updated_at FROM appointments WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetAppointment(ctx context.Context, id int64) (Appointment, error) {
@@ -301,6 +338,7 @@ func (q *Queries) GetAppointment(ctx context.Context, id int64) (Appointment, er
 		&i.Date,
 		&i.StartTime,
 		&i.DurationMinutes,
+		&i.Notes,
 		&i.Price,
 		&i.Status,
 		&i.RescheduledFromID,
@@ -417,25 +455,27 @@ func (q *Queries) GetProfessionalByEmail(ctx context.Context, email string) (Pro
 }
 
 const getProfessionalSettings = `-- name: GetProfessionalSettings :one
-SELECT id, cancellation_window_hours 
-FROM professionals 
-WHERE id = $1
+SELECT professional_id, default_duration_minutes, buffer_minutes, time_increment_minutes, min_booking_notice_hours, max_daily_appointments, updated_at FROM professional_settings
+WHERE professional_id = $1
 `
 
-type GetProfessionalSettingsRow struct {
-	ID                      int64         `json:"id"`
-	CancellationWindowHours sql.NullInt32 `json:"cancellation_window_hours"`
-}
-
-func (q *Queries) GetProfessionalSettings(ctx context.Context, id int64) (GetProfessionalSettingsRow, error) {
-	row := q.db.QueryRowContext(ctx, getProfessionalSettings, id)
-	var i GetProfessionalSettingsRow
-	err := row.Scan(&i.ID, &i.CancellationWindowHours)
+func (q *Queries) GetProfessionalSettings(ctx context.Context, professionalID int64) (ProfessionalSetting, error) {
+	row := q.db.QueryRowContext(ctx, getProfessionalSettings, professionalID)
+	var i ProfessionalSetting
+	err := row.Scan(
+		&i.ProfessionalID,
+		&i.DefaultDurationMinutes,
+		&i.BufferMinutes,
+		&i.TimeIncrementMinutes,
+		&i.MinBookingNoticeHours,
+		&i.MaxDailyAppointments,
+		&i.UpdatedAt,
+	)
 	return i, err
 }
 
 const listAppointmentsInDateRange = `-- name: ListAppointmentsInDateRange :many
-SELECT a.id, a.professional_id, a.client_id, a.date, a.start_time, a.duration_minutes, a.price, a.status, a.rescheduled_from_id, a.recurring_rule_id, a.created_at, a.updated_at, c.name as client_name
+SELECT a.id, a.professional_id, a.client_id, a.date, a.start_time, a.duration_minutes, a.notes, a.price, a.status, a.rescheduled_from_id, a.recurring_rule_id, a.created_at, a.updated_at, c.name as client_name
 FROM appointments a
 JOIN clients c ON a.client_id = c.id
 WHERE a.professional_id = $1 
@@ -457,6 +497,7 @@ type ListAppointmentsInDateRangeRow struct {
 	Date              time.Time      `json:"date"`
 	StartTime         string         `json:"start_time"`
 	DurationMinutes   int32          `json:"duration_minutes"`
+	Notes             sql.NullString `json:"notes"`
 	Price             sql.NullString `json:"price"`
 	Status            sql.NullString `json:"status"`
 	RescheduledFromID sql.NullInt64  `json:"rescheduled_from_id"`
@@ -466,7 +507,6 @@ type ListAppointmentsInDateRangeRow struct {
 	ClientName        string         `json:"client_name"`
 }
 
-// En Postgres usamos $2 y $3 para las fechas.
 func (q *Queries) ListAppointmentsInDateRange(ctx context.Context, arg ListAppointmentsInDateRangeParams) ([]ListAppointmentsInDateRangeRow, error) {
 	rows, err := q.db.QueryContext(ctx, listAppointmentsInDateRange, arg.ProfessionalID, arg.Column2, arg.Column3)
 	if err != nil {
@@ -483,6 +523,7 @@ func (q *Queries) ListAppointmentsInDateRange(ctx context.Context, arg ListAppoi
 			&i.Date,
 			&i.StartTime,
 			&i.DurationMinutes,
+			&i.Notes,
 			&i.Price,
 			&i.Status,
 			&i.RescheduledFromID,
@@ -527,6 +568,50 @@ func (q *Queries) ListClients(ctx context.Context, professionalID int64) ([]Clie
 			&i.Phone,
 			&i.Active,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listClinicalNotes = `-- name: ListClinicalNotes :many
+SELECT id, professional_id, client_id, appointment_id, content, is_encrypted, created_at, updated_at FROM clinical_notes
+WHERE client_id = $1 AND professional_id = $2
+ORDER BY created_at DESC
+`
+
+type ListClinicalNotesParams struct {
+	ClientID       int64 `json:"client_id"`
+	ProfessionalID int64 `json:"professional_id"`
+}
+
+// Traemos las notas de un paciente ordenadas por fecha (más reciente arriba)
+func (q *Queries) ListClinicalNotes(ctx context.Context, arg ListClinicalNotesParams) ([]ClinicalNote, error) {
+	rows, err := q.db.QueryContext(ctx, listClinicalNotes, arg.ClientID, arg.ProfessionalID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ClinicalNote
+	for rows.Next() {
+		var i ClinicalNote
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProfessionalID,
+			&i.ClientID,
+			&i.AppointmentID,
+			&i.Content,
+			&i.IsEncrypted,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -708,7 +793,7 @@ const updateAppointmentStatus = `-- name: UpdateAppointmentStatus :one
 UPDATE appointments
 SET status = $1, updated_at = NOW()
 WHERE id = $2
-RETURNING id, professional_id, client_id, date, start_time, duration_minutes, price, status, rescheduled_from_id, recurring_rule_id, created_at, updated_at
+RETURNING id, professional_id, client_id, date, start_time, duration_minutes, notes, price, status, rescheduled_from_id, recurring_rule_id, created_at, updated_at
 `
 
 type UpdateAppointmentStatusParams struct {
@@ -716,7 +801,6 @@ type UpdateAppointmentStatusParams struct {
 	ID     int64          `json:"id"`
 }
 
-// Usamos NOW() para Postgres
 func (q *Queries) UpdateAppointmentStatus(ctx context.Context, arg UpdateAppointmentStatusParams) (Appointment, error) {
 	row := q.db.QueryRowContext(ctx, updateAppointmentStatus, arg.Status, arg.ID)
 	var i Appointment
@@ -727,11 +811,91 @@ func (q *Queries) UpdateAppointmentStatus(ctx context.Context, arg UpdateAppoint
 		&i.Date,
 		&i.StartTime,
 		&i.DurationMinutes,
+		&i.Notes,
 		&i.Price,
 		&i.Status,
 		&i.RescheduledFromID,
 		&i.RecurringRuleID,
 		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateClinicalNote = `-- name: UpdateClinicalNote :one
+UPDATE clinical_notes
+SET content = $1, updated_at = NOW()
+WHERE id = $2
+RETURNING id, professional_id, client_id, appointment_id, content, is_encrypted, created_at, updated_at
+`
+
+type UpdateClinicalNoteParams struct {
+	Content string `json:"content"`
+	ID      int64  `json:"id"`
+}
+
+func (q *Queries) UpdateClinicalNote(ctx context.Context, arg UpdateClinicalNoteParams) (ClinicalNote, error) {
+	row := q.db.QueryRowContext(ctx, updateClinicalNote, arg.Content, arg.ID)
+	var i ClinicalNote
+	err := row.Scan(
+		&i.ID,
+		&i.ProfessionalID,
+		&i.ClientID,
+		&i.AppointmentID,
+		&i.Content,
+		&i.IsEncrypted,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertProfessionalSettings = `-- name: UpsertProfessionalSettings :one
+
+INSERT INTO professional_settings (
+    professional_id, default_duration_minutes, buffer_minutes, 
+    time_increment_minutes, min_booking_notice_hours, max_daily_appointments
+) VALUES (
+    $1, $2, $3, $4, $5, $6
+)
+ON CONFLICT (professional_id) DO UPDATE SET
+    default_duration_minutes = EXCLUDED.default_duration_minutes,
+    buffer_minutes = EXCLUDED.buffer_minutes,
+    time_increment_minutes = EXCLUDED.time_increment_minutes,
+    min_booking_notice_hours = EXCLUDED.min_booking_notice_hours,
+    max_daily_appointments = EXCLUDED.max_daily_appointments,
+    updated_at = NOW()
+RETURNING professional_id, default_duration_minutes, buffer_minutes, time_increment_minutes, min_booking_notice_hours, max_daily_appointments, updated_at
+`
+
+type UpsertProfessionalSettingsParams struct {
+	ProfessionalID         int64         `json:"professional_id"`
+	DefaultDurationMinutes sql.NullInt32 `json:"default_duration_minutes"`
+	BufferMinutes          sql.NullInt32 `json:"buffer_minutes"`
+	TimeIncrementMinutes   sql.NullInt32 `json:"time_increment_minutes"`
+	MinBookingNoticeHours  sql.NullInt32 `json:"min_booking_notice_hours"`
+	MaxDailyAppointments   sql.NullInt32 `json:"max_daily_appointments"`
+}
+
+// SECTION: Professional Settings (NUEVO)
+// "Upsert": Si existe lo actualiza, si no existe lo crea.
+func (q *Queries) UpsertProfessionalSettings(ctx context.Context, arg UpsertProfessionalSettingsParams) (ProfessionalSetting, error) {
+	row := q.db.QueryRowContext(ctx, upsertProfessionalSettings,
+		arg.ProfessionalID,
+		arg.DefaultDurationMinutes,
+		arg.BufferMinutes,
+		arg.TimeIncrementMinutes,
+		arg.MinBookingNoticeHours,
+		arg.MaxDailyAppointments,
+	)
+	var i ProfessionalSetting
+	err := row.Scan(
+		&i.ProfessionalID,
+		&i.DefaultDurationMinutes,
+		&i.BufferMinutes,
+		&i.TimeIncrementMinutes,
+		&i.MinBookingNoticeHours,
+		&i.MaxDailyAppointments,
 		&i.UpdatedAt,
 	)
 	return i, err

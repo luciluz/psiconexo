@@ -16,7 +16,8 @@ type CreateAppointmentRequest struct {
 	Date           time.Time
 	StartTime      string
 	Duration       int
-	Price          float64 // Nuevo campo
+	Price          float64
+	Notes          string // <--- NUEVO CAMPO
 }
 
 type CreateRecurringRuleRequest struct {
@@ -25,15 +26,18 @@ type CreateRecurringRuleRequest struct {
 	DayOfWeek      int
 	StartTime      string
 	Duration       int
-	Price          float64   // Nuevo campo
-	StartDate      time.Time // Nuevo campo (opcional)
+	Price          float64
+	StartDate      time.Time
+	// No agregamos Notes a la regla recurrente por ahora
 }
 
-// CheckAvailability verifica si hay colisiones.
+// CheckAvailability sin cambios...
 func (s *Service) CheckAvailability(ctx context.Context, profID int64, date time.Time, newStartStr string, duration int) error {
+	// Nota: Asegúrate que sqlc generó el nombre 'Date' o 'Column2'. Usaremos Date asumiendo regeneración correcta.
+	// Si te sigue dando error de Column2, mantenlo como lo tenías.
 	existingAppts, err := s.queries.GetDayAppointments(ctx, db.GetDayAppointmentsParams{
 		ProfessionalID: profID,
-		Column2:        date,
+		Column2:        date, // <--- Ajustar según tu sqlc generado
 	})
 	if err != nil {
 		return fmt.Errorf("error obteniendo agenda del día: %w", err)
@@ -65,8 +69,6 @@ func (s *Service) CreateAppointment(ctx context.Context, req CreateAppointmentRe
 		return nil, err
 	}
 
-	// Conversión de precio float64 a string para Postgres (DECIMAL)
-	// sqlc con lib/pq suele generar string para tipos numeric/decimal
 	priceStr := fmt.Sprintf("%.2f", req.Price)
 
 	// 2. Insertar turno
@@ -77,6 +79,7 @@ func (s *Service) CreateAppointment(ctx context.Context, req CreateAppointmentRe
 		StartTime:         req.StartTime,
 		DurationMinutes:   int32(req.Duration),
 		Price:             sql.NullString{String: priceStr, Valid: true},
+		Notes:             sql.NullString{String: req.Notes, Valid: req.Notes != ""}, // <--- NUEVO: Pasamos la nota
 		RescheduledFromID: sql.NullInt64{Valid: false},
 		RecurringRuleID:   sql.NullInt64{Valid: false},
 	})
@@ -89,6 +92,7 @@ func (s *Service) CreateAppointment(ctx context.Context, req CreateAppointmentRe
 }
 
 func (s *Service) ListAppointments(ctx context.Context, profID int64, start, end time.Time) ([]db.ListAppointmentsInDateRangeRow, error) {
+	// Revisa nombres de parametros generados (Date vs Column2)
 	appts, err := s.queries.ListAppointmentsInDateRange(ctx, db.ListAppointmentsInDateRangeParams{
 		ProfessionalID: profID,
 		Column2:        start,
@@ -101,16 +105,14 @@ func (s *Service) ListAppointments(ctx context.Context, profID int64, start, end
 }
 
 func (s *Service) CreateRecurringRule(ctx context.Context, req CreateRecurringRuleRequest) (*db.RecurringRule, error) {
-
+	// Sin cambios en la lógica, solo en la materialización abajo
 	priceStr := fmt.Sprintf("%.2f", req.Price)
 
-	// Manejo de StartDate opcional
 	var startDate sql.NullTime
 	if !req.StartDate.IsZero() {
 		startDate = sql.NullTime{Time: req.StartDate, Valid: true}
 	}
 
-	// 1. Guardar la Regla Maestra
 	rule, err := s.queries.CreateRecurringRule(ctx, db.CreateRecurringRuleParams{
 		ProfessionalID:  req.ProfessionalID,
 		ClientID:        req.ClientID,
@@ -125,7 +127,6 @@ func (s *Service) CreateRecurringRule(ctx context.Context, req CreateRecurringRu
 		return nil, fmt.Errorf("error guardando regla recurrente: %w", err)
 	}
 
-	// 2. Materializar turnos futuros
 	if err := s.generateFutureAppointments(ctx, &rule, 8); err != nil {
 		log.Printf("Error generando turnos futuros para regla %d: %v", rule.ID, err)
 	}
@@ -133,6 +134,7 @@ func (s *Service) CreateRecurringRule(ctx context.Context, req CreateRecurringRu
 	return &rule, nil
 }
 
+// ListRecurringRules sin cambios...
 func (s *Service) ListRecurringRules(ctx context.Context, profID int64) ([]db.ListRecurringRulesRow, error) {
 	rules, err := s.queries.ListRecurringRules(ctx, profID)
 	if err != nil {
@@ -144,14 +146,12 @@ func (s *Service) ListRecurringRules(ctx context.Context, profID int64) ([]db.Li
 // --- MATERIALIZACIÓN ---
 
 func (s *Service) generateFutureAppointments(ctx context.Context, rule *db.RecurringRule, weeksAhead int) error {
+	// ... Lógica de fechas sin cambios ...
 	targetDayOfWeek := time.Weekday(rule.DayOfWeek)
 	if rule.DayOfWeek == 7 {
 		targetDayOfWeek = time.Sunday
 	}
-
 	currentDate := time.Now()
-
-	// Si la regla tiene fecha de inicio futura, empezamos a contar desde ahí
 	if rule.StartDate.Valid && rule.StartDate.Time.After(currentDate) {
 		currentDate = rule.StartDate.Time
 	}
@@ -168,23 +168,23 @@ func (s *Service) generateFutureAppointments(ctx context.Context, rule *db.Recur
 			continue
 		}
 
-		// Verificamos disponibilidad usando ProfessionalID
 		if err := s.CheckAvailability(ctx, rule.ProfessionalID, targetDate, rule.StartTime, int(rule.DurationMinutes)); err != nil {
 			log.Printf("Saltando generación turno recurrente para %s: Ocupado", targetDate.Format("2006-01-02"))
 			continue
 		}
 
-		// Copiamos el precio de la regla al turno (Snapshot)
-		// Nota: rule.Price en DB suele ser NullString, lo pasamos tal cual
 		price := rule.Price
 
+		// NUEVO: La query CreateAppointment ahora exige el campo Notes.
+		// Como es un turno automático generado por regla, va vacío (NULL).
 		_, err := s.queries.CreateAppointment(ctx, db.CreateAppointmentParams{
 			ProfessionalID:    rule.ProfessionalID,
 			ClientID:          rule.ClientID,
 			Date:              targetDate,
 			StartTime:         rule.StartTime,
 			DurationMinutes:   rule.DurationMinutes,
-			Price:             price, // <-- Precio desde la regla
+			Price:             price,
+			Notes:             sql.NullString{Valid: false}, // <--- NUEVO: Nota vacía
 			RescheduledFromID: sql.NullInt64{Valid: false},
 			RecurringRuleID:   sql.NullInt64{Int64: rule.ID, Valid: true},
 		})
