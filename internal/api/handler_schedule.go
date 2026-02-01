@@ -9,7 +9,7 @@ import (
 )
 
 type updateScheduleDTO struct {
-	PsychologistID int64 `json:"psychologist_id" binding:"required"`
+	ProfessionalID int64 `json:"professional_id" binding:"required"`
 	Blocks         []struct {
 		DayOfWeek int    `json:"day_of_week" binding:"required,min=1,max=7"`
 		StartTime string `json:"start_time" binding:"required"`
@@ -35,7 +35,7 @@ func (h *Handler) UpdateSchedule(c *gin.Context) {
 	}
 
 	err := h.svc.UpdateSchedule(c.Request.Context(), service.UpdateScheduleRequest{
-		PsychologistID: req.PsychologistID,
+		ProfessionalID: req.ProfessionalID,
 		Blocks:         serviceBlocks,
 	})
 
@@ -49,15 +49,15 @@ func (h *Handler) UpdateSchedule(c *gin.Context) {
 
 func (h *Handler) ListSchedule(c *gin.Context) {
 	var req struct {
-		PsychologistID int64 `form:"psychologist_id" binding:"required"`
+		ProfessionalID int64 `form:"professional_id" binding:"required"`
 	}
 
 	if err := c.ShouldBindQuery(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "psychologist_id requerido"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "professional_id requerido"})
 		return
 	}
 
-	schedule, err := h.svc.ListSchedule(c.Request.Context(), req.PsychologistID)
+	schedule, err := h.svc.ListSchedule(c.Request.Context(), req.ProfessionalID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

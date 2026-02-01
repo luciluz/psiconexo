@@ -1,98 +1,78 @@
--- 1. PSICÓLOGOS
-CREATE TABLE IF NOT EXISTS psychologists (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+-- 1. PROFESIONALES
+CREATE TABLE IF NOT EXISTS professionals (
+    id BIGSERIAL PRIMARY KEY,  -- <-- CAMBIO: BIGSERIAL
     name TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE,
     phone TEXT UNIQUE,
-    cancellation_window_hours INTEGER DEFAULT 24,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    cancellation_window_hours INTEGER DEFAULT 24, -- Se queda en INTEGER (int32)
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 2. PACIENTES
-CREATE TABLE IF NOT EXISTS patients (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+-- 2. CLIENTES
+CREATE TABLE IF NOT EXISTS clients (
+    id BIGSERIAL PRIMARY KEY,  -- <-- CAMBIO
     name TEXT NOT NULL,
-    psychologist_id INTEGER NOT NULL,
-    email TEXT NOT NULL UNIQUE,
-    phone TEXT UNIQUE,
+    professional_id BIGINT NOT NULL, -- <-- CAMBIO: BIGINT
+    email TEXT,
+    phone TEXT,
     active BOOLEAN DEFAULT TRUE,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (psychologist_id) REFERENCES psychologists(id)
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    FOREIGN KEY (professional_id) REFERENCES professionals(id)
 );
 
--- 3. CONFIGURACIÓN DE DISPONIBILIDAD
+-- 3. CONFIGURACIÓN DE AGENDA
 CREATE TABLE IF NOT EXISTS schedule_configs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    psychologist_id INTEGER NOT NULL,
+    id BIGSERIAL PRIMARY KEY, -- <-- CAMBIO
+    professional_id BIGINT NOT NULL, -- <-- CAMBIO
     day_of_week INTEGER NOT NULL,
     start_time TEXT NOT NULL,
     end_time TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (psychologist_id) REFERENCES psychologists(id),
-    UNIQUE(psychologist_id, day_of_week, start_time)
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    FOREIGN KEY (professional_id) REFERENCES professionals(id),
+    UNIQUE(professional_id, day_of_week, start_time)
 );
 
--- 4. REGLAS DE RECURRENCIA (Antes recurring_slots)
--- Esta tabla NO reserva el turno, solo guarda la instrucción de "generar turnos".
+-- 4. REGLAS DE RECURRENCIA
 CREATE TABLE IF NOT EXISTS recurring_rules (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    psychologist_id INTEGER NOT NULL,
-    patient_id INTEGER NOT NULL,
-    day_of_week INTEGER NOT NULL,     -- Ej: 1 (Lunes)
-    start_time TEXT NOT NULL,         -- Ej: "10:00"
+    id BIGSERIAL PRIMARY KEY, -- <-- CAMBIO
+    professional_id BIGINT NOT NULL, -- <-- CAMBIO
+    client_id BIGINT NOT NULL, -- <-- CAMBIO
+    day_of_week INTEGER NOT NULL,
+    start_time TEXT NOT NULL,
     duration_minutes INTEGER NOT NULL,
     
-    active BOOLEAN DEFAULT TRUE,      -- Permite pausar la regla sin borrarla
-    start_date DATE,                  -- Opcional: Desde cuándo aplica la regla
+    price DECIMAL(10, 2) DEFAULT 0,
     
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (psychologist_id) REFERENCES psychologists(id),
-    FOREIGN KEY (patient_id) REFERENCES patients(id),
+    active BOOLEAN DEFAULT TRUE,
+    start_date DATE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
     
-    -- Evitamos crear dos reglas idénticas para el mismo profesional
-    UNIQUE(psychologist_id, day_of_week, start_time)
+    FOREIGN KEY (professional_id) REFERENCES professionals(id),
+    FOREIGN KEY (client_id) REFERENCES clients(id)
 );
 
 -- 5. TURNOS
--- Aquí viven TANTO los puntuales COMO las instancias generadas de los fijos.
 CREATE TABLE IF NOT EXISTS appointments (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    psychologist_id INTEGER NOT NULL,
-    patient_id INTEGER NOT NULL,
+    id BIGSERIAL PRIMARY KEY, -- <-- CAMBIO
+    professional_id BIGINT NOT NULL, -- <-- CAMBIO
+    client_id BIGINT NOT NULL, -- <-- CAMBIO
     date DATE NOT NULL,
     start_time TEXT NOT NULL,
     duration_minutes INTEGER NOT NULL,
     
-    -- Agregamos 'rescheduled' que es un estado útil
+    price DECIMAL(10, 2) DEFAULT 0,
+    
     status TEXT CHECK(status IN ('scheduled', 'cancelled', 'completed', 'rescheduled')) DEFAULT 'scheduled',
-    
-    rescheduled_from_id INTEGER,
-    
-    -- NUEVO CAMPO: ¿Vino de una regla fija?
-    -- Si es NULL = Turno puntual eventual.
-    -- Si tiene ID = Es la instancia concreta de una regla fija.
-    recurring_rule_id INTEGER, 
+    rescheduled_from_id BIGINT, -- <-- CAMBIO
+    recurring_rule_id BIGINT,   -- <-- CAMBIO
 
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
 
-    FOREIGN KEY (psychologist_id) REFERENCES psychologists(id),
-    FOREIGN KEY (patient_id) REFERENCES patients(id),
+    FOREIGN KEY (professional_id) REFERENCES professionals(id),
+    FOREIGN KEY (client_id) REFERENCES clients(id),
     FOREIGN KEY (rescheduled_from_id) REFERENCES appointments(id),
     FOREIGN KEY (recurring_rule_id) REFERENCES recurring_rules(id),
     
-    -- LA GRAN BARRERA:
-    -- Esto impide que existan dos turnos a la misma hora y fecha para el mismo psicólogo.
-    UNIQUE(psychologist_id, date, start_time)
+    UNIQUE(professional_id, date, start_time)
 );
-
--- ÍNDICES
-CREATE INDEX IF NOT EXISTS idx_appointments_calendar 
-ON appointments(psychologist_id, date);
-
-CREATE INDEX IF NOT EXISTS idx_patients_psychologist 
-ON patients(psychologist_id);
-
--- Índice para encontrar rápido los turnos generados por una regla específica
-CREATE INDEX IF NOT EXISTS idx_appointments_rule 
-ON appointments(recurring_rule_id);

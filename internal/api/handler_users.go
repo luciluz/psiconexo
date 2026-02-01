@@ -8,28 +8,31 @@ import (
 	"github.com/luciluz/psiconexo/internal/service"
 )
 
-type createPsychologistDTO struct {
+// DTOs actualizados
+type createProfessionalDTO struct {
 	Name                    string `json:"name" binding:"required"`
 	Email                   string `json:"email" binding:"required,email"`
 	Phone                   string `json:"phone"`
 	CancellationWindowHours int    `json:"cancellation_window_hours"`
 }
 
-type createPatientDTO struct {
+type createClientDTO struct {
 	Name           string `json:"name" binding:"required"`
-	Email          string `json:"email" binding:"required,email"`
+	Email          string `json:"email"`
 	Phone          string `json:"phone"`
-	PsychologistID int64  `json:"psychologist_id" binding:"required"`
+	ProfessionalID int64  `json:"professional_id" binding:"required"`
 }
 
-func (h *Handler) CreatePsychologist(c *gin.Context) {
-	var req createPsychologistDTO
+// --- Handlers Profesionales ---
+
+func (h *Handler) CreateProfessional(c *gin.Context) {
+	var req createProfessionalDTO
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	psy, err := h.svc.CreatePsychologist(c.Request.Context(), service.CreatePsychologistRequest{
+	prof, err := h.svc.CreateProfessional(c.Request.Context(), service.CreateProfessionalRequest{
 		Name:                    req.Name,
 		Email:                   req.Email,
 		Phone:                   req.Phone,
@@ -41,21 +44,32 @@ func (h *Handler) CreatePsychologist(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, psy)
+	c.JSON(http.StatusCreated, prof)
 }
 
-func (h *Handler) CreatePatient(c *gin.Context) {
-	var req createPatientDTO
+func (h *Handler) ListProfessionals(c *gin.Context) {
+	profs, err := h.svc.ListProfessionals(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, profs)
+}
+
+// --- Handlers Clientes ---
+
+func (h *Handler) CreateClient(c *gin.Context) {
+	var req createClientDTO
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	pat, err := h.svc.CreatePatient(c.Request.Context(), service.CreatePatientRequest{
+	client, err := h.svc.CreateClient(c.Request.Context(), service.CreateClientRequest{
 		Name:           req.Name,
 		Email:          req.Email,
 		Phone:          req.Phone,
-		PsychologistID: req.PsychologistID,
+		ProfessionalID: req.ProfessionalID,
 	})
 
 	if err != nil {
@@ -63,38 +77,28 @@ func (h *Handler) CreatePatient(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, pat)
+	c.JSON(http.StatusCreated, client)
 }
 
-func (h *Handler) ListPsychologists(c *gin.Context) {
-	appts, err := h.svc.ListPsychologists(c.Request.Context())
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, appts)
-}
-
-func (h *Handler) ListPatients(c *gin.Context) {
+func (h *Handler) ListClients(c *gin.Context) {
 	var req struct {
-		PsychologistID int64 `form:"psychologist_id" binding:"required"`
+		ProfessionalID int64 `form:"professional_id" binding:"required"`
 	}
 
 	if err := c.ShouldBindQuery(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "psychologist_id es inválido o requerido"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "professional_id es inválido o requerido"})
 		return
 	}
 
-	patients, err := h.svc.ListPatients(c.Request.Context(), req.PsychologistID)
+	clients, err := h.svc.ListClients(c.Request.Context(), req.ProfessionalID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch patients"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch clients"})
 		return
 	}
 
-	if patients == nil {
-		patients = []db.Patient{}
+	if clients == nil {
+		clients = []db.Client{}
 	}
 
-	c.JSON(http.StatusOK, patients)
+	c.JSON(http.StatusOK, clients)
 }

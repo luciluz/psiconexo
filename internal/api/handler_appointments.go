@@ -9,20 +9,22 @@ import (
 )
 
 type createAppointmentDTO struct {
-	PsychologistID int64  `json:"psychologist_id" binding:"required"`
-	PatientID      int64  `json:"patient_id" binding:"required"`
-	Date           string `json:"date" binding:"required"`
-	StartTime      string `json:"start_time" binding:"required"`
-	Duration       int    `json:"duration" binding:"required,gt=0"`
+	ProfessionalID int64   `json:"professional_id" binding:"required"`
+	ClientID       int64   `json:"client_id" binding:"required"`
+	Date           string  `json:"date" binding:"required"`
+	StartTime      string  `json:"start_time" binding:"required"`
+	Duration       int     `json:"duration" binding:"required,gt=0"`
+	Price          float64 `json:"price"` // Nuevo campo opcional (puede ser 0)
 }
 
-// Renombramos DTO para reflejar que es una Regla
 type createRecurringRuleDTO struct {
-	PsychologistID int64  `json:"psychologist_id" binding:"required"`
-	PatientID      int64  `json:"patient_id" binding:"required"`
-	DayOfWeek      int    `json:"day_of_week" binding:"required,min=1,max=7"`
-	StartTime      string `json:"start_time" binding:"required"`
-	Duration       int    `json:"duration" binding:"required,gt=0"`
+	ProfessionalID int64   `json:"professional_id" binding:"required"`
+	ClientID       int64   `json:"client_id" binding:"required"`
+	DayOfWeek      int     `json:"day_of_week" binding:"required,min=1,max=7"`
+	StartTime      string  `json:"start_time" binding:"required"`
+	Duration       int     `json:"duration" binding:"required,gt=0"`
+	Price          float64 `json:"price"`      // Nuevo campo
+	StartDate      string  `json:"start_date"` // Nuevo campo opcional
 }
 
 func (h *Handler) CreateAppointment(c *gin.Context) {
@@ -39,12 +41,12 @@ func (h *Handler) CreateAppointment(c *gin.Context) {
 	}
 
 	appt, err := h.svc.CreateAppointment(c.Request.Context(), service.CreateAppointmentRequest{
-		PsychologistID: req.PsychologistID,
-		PatientID:      req.PatientID,
+		ProfessionalID: req.ProfessionalID,
+		ClientID:       req.ClientID,
 		Date:           parsedDate,
 		StartTime:      req.StartTime,
 		Duration:       req.Duration,
-		// RecurringRuleID va implícito como nil en el servicio para turnos manuales
+		Price:          req.Price, // Pasamos el precio
 	})
 
 	if err != nil {
@@ -57,13 +59,13 @@ func (h *Handler) CreateAppointment(c *gin.Context) {
 
 func (h *Handler) ListAppointments(c *gin.Context) {
 
-	if c.Query("psychologist_id") == "" || c.Query("start_date") == "" || c.Query("end_date") == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "faltan parámetros requeridos: psychologist_id, start_date, end_date"})
+	if c.Query("professional_id") == "" || c.Query("start_date") == "" || c.Query("end_date") == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "faltan parámetros requeridos: professional_id, start_date, end_date"})
 		return
 	}
 
 	var req struct {
-		PsychologistID int64  `form:"psychologist_id" binding:"required"`
+		ProfessionalID int64  `form:"professional_id" binding:"required"`
 		StartDate      string `form:"start_date" binding:"required"`
 		EndDate        string `form:"end_date" binding:"required"`
 	}
@@ -82,7 +84,7 @@ func (h *Handler) ListAppointments(c *gin.Context) {
 		return
 	}
 
-	appts, err := h.svc.ListAppointments(c.Request.Context(), req.PsychologistID, start, end)
+	appts, err := h.svc.ListAppointments(c.Request.Context(), req.ProfessionalID, start, end)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -91,7 +93,6 @@ func (h *Handler) ListAppointments(c *gin.Context) {
 	c.JSON(http.StatusOK, appts)
 }
 
-// Renombrado: CreateRecurringSlot -> CreateRecurringRule
 func (h *Handler) CreateRecurringRule(c *gin.Context) {
 	var req createRecurringRuleDTO
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -99,13 +100,25 @@ func (h *Handler) CreateRecurringRule(c *gin.Context) {
 		return
 	}
 
-	// Llamamos al servicio (que internamente creará la regla Y generará los turnos futuros)
+	// Parseo de StartDate si viene, sino nil/time.Zero
+	var startDateParsed time.Time
+	if req.StartDate != "" {
+		var err error
+		startDateParsed, err = time.Parse("2006-01-02", req.StartDate)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "start_date inválido"})
+			return
+		}
+	}
+
 	rule, err := h.svc.CreateRecurringRule(c.Request.Context(), service.CreateRecurringRuleRequest{
-		PsychologistID: req.PsychologistID,
-		PatientID:      req.PatientID,
+		ProfessionalID: req.ProfessionalID,
+		ClientID:       req.ClientID,
 		DayOfWeek:      req.DayOfWeek,
 		StartTime:      req.StartTime,
 		Duration:       req.Duration,
+		Price:          req.Price,
+		StartDate:      startDateParsed,
 	})
 
 	if err != nil {
@@ -116,15 +129,9 @@ func (h *Handler) CreateRecurringRule(c *gin.Context) {
 	c.JSON(http.StatusCreated, rule)
 }
 
-// Renombrado: ListRecurringSlots -> ListRecurringRules
 func (h *Handler) ListRecurringRules(c *gin.Context) {
-	if c.Query("psychologist_id") == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "falta psychologist_id"})
-		return
-	}
-
 	var req struct {
-		PsychologistID int64 `form:"psychologist_id" binding:"required"`
+		ProfessionalID int64 `form:"professional_id" binding:"required"`
 	}
 
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -132,7 +139,7 @@ func (h *Handler) ListRecurringRules(c *gin.Context) {
 		return
 	}
 
-	rules, err := h.svc.ListRecurringRules(c.Request.Context(), req.PsychologistID)
+	rules, err := h.svc.ListRecurringRules(c.Request.Context(), req.ProfessionalID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

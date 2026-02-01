@@ -13,7 +13,7 @@ type ScheduleBlock struct {
 }
 
 type UpdateScheduleRequest struct {
-	PsychologistID int64
+	ProfessionalID int64
 	Blocks         []ScheduleBlock
 }
 
@@ -27,14 +27,16 @@ func (s *Service) UpdateSchedule(ctx context.Context, req UpdateScheduleRequest)
 
 	qtx := s.queries.WithTx(tx)
 
-	if err := qtx.DeleteScheduleConfigs(ctx, req.PsychologistID); err != nil {
+	// 1. Borramos configuración anterior
+	if err := qtx.DeleteScheduleConfigs(ctx, req.ProfessionalID); err != nil {
 		return err
 	}
 
+	// 2. Insertamos bloques nuevos
 	for _, block := range req.Blocks {
 		_, err := qtx.CreateScheduleConfig(ctx, db.CreateScheduleConfigParams{
-			PsychologistID: req.PsychologistID,
-			DayOfWeek:      int64(block.DayOfWeek),
+			ProfessionalID: req.ProfessionalID,
+			DayOfWeek:      int32(block.DayOfWeek),
 			StartTime:      block.StartTime,
 			EndTime:        block.EndTime,
 		})
@@ -46,6 +48,6 @@ func (s *Service) UpdateSchedule(ctx context.Context, req UpdateScheduleRequest)
 	return tx.Commit()
 }
 
-func (s *Service) ListSchedule(ctx context.Context, psychologistID int64) ([]db.ScheduleConfig, error) {
-	return s.queries.ListScheduleConfigs(ctx, psychologistID)
+func (s *Service) ListSchedule(ctx context.Context, professionalID int64) ([]db.ScheduleConfig, error) {
+	return s.queries.ListScheduleConfigs(ctx, professionalID)
 }

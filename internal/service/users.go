@@ -8,60 +8,61 @@ import (
 	"github.com/luciluz/psiconexo/internal/db"
 )
 
-type CreatePsychologistRequest struct {
+type CreateProfessionalRequest struct {
 	Name                    string
 	Email                   string
 	Phone                   string
 	CancellationWindowHours int
 }
 
-type CreatePatientRequest struct {
+type CreateClientRequest struct {
 	Name           string
 	Email          string
 	Phone          string
-	PsychologistID int64
+	ProfessionalID int64
 }
 
-func (s *Service) CreatePsychologist(ctx context.Context, req CreatePsychologistRequest) (*db.Psychologist, error) {
+func (s *Service) CreateProfessional(ctx context.Context, req CreateProfessionalRequest) (*db.Professional, error) {
 
-	psy, err := s.queries.CreatePsychologist(ctx, db.CreatePsychologistParams{
+	prof, err := s.queries.CreateProfessional(ctx, db.CreateProfessionalParams{
 		Name:                    req.Name,
 		Email:                   req.Email,
 		Phone:                   sql.NullString{String: req.Phone, Valid: req.Phone != ""},
-		CancellationWindowHours: sql.NullInt64{Int64: int64(req.CancellationWindowHours), Valid: true},
+		CancellationWindowHours: sql.NullInt32{Int32: int32(req.CancellationWindowHours), Valid: true},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error creando psicólogo: %w", err)
+		return nil, fmt.Errorf("error creando profesional: %w", err)
 	}
-	return &psy, nil
+	return &prof, nil
 }
 
-func (s *Service) CreatePatient(ctx context.Context, req CreatePatientRequest) (*db.Patient, error) {
+func (s *Service) CreateClient(ctx context.Context, req CreateClientRequest) (*db.Client, error) {
 
-	pat, err := s.queries.CreatePatient(ctx, db.CreatePatientParams{
+	client, err := s.queries.CreateClient(ctx, db.CreateClientParams{
 		Name:           req.Name,
-		Email:          req.Email,
-		Phone:          sql.NullString{String: req.Phone, Valid: req.Phone != ""},
-		PsychologistID: req.PsychologistID,
+		Email:          sql.NullString{String: req.Email, Valid: req.Email != ""}, // Ahora es nullable
+		Phone:          sql.NullString{String: req.Phone, Valid: req.Phone != ""}, // Ahora es nullable
+		ProfessionalID: req.ProfessionalID,
+		Active:         sql.NullBool{Bool: true, Valid: true},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error creando paciente: %w", err)
+		return nil, fmt.Errorf("error creando cliente: %w", err)
 	}
-	return &pat, nil
+	return &client, nil
 }
 
-func (s *Service) ListPsychologists(ctx context.Context) ([]db.ListPsychologistsRow, error) {
-	psy, err := s.queries.ListPsychologists(ctx)
+func (s *Service) ListProfessionals(ctx context.Context) ([]db.ListProfessionalsRow, error) {
+	profs, err := s.queries.ListProfessionals(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("error listando pacientes: %w", err)
+		return nil, fmt.Errorf("error listando profesionales: %w", err)
 	}
-	return psy, nil
+	return profs, nil
 }
 
-func (s *Service) ListPatients(ctx context.Context, psychologistID int64) ([]db.Patient, error) {
-	patients, err := s.queries.ListPatients(ctx, psychologistID)
+func (s *Service) ListClients(ctx context.Context, professionalID int64) ([]db.Client, error) {
+	clients, err := s.queries.ListClients(ctx, professionalID)
 	if err != nil {
-		return nil, fmt.Errorf("error listando pacientes para psicólogo %d: %w", psychologistID, err)
+		return nil, fmt.Errorf("error listando clientes para profesional %d: %w", professionalID, err)
 	}
-	return patients, nil
+	return clients, nil
 }

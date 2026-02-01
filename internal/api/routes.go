@@ -8,11 +8,12 @@ func NewRouter(h *Handler) *gin.Engine {
 
 	v1 := r.Group("/api/v1")
 	{
-		// Usuarios
-		v1.POST("/psychologists", h.CreatePsychologist)
-		v1.GET("/psychologists", h.ListPsychologists)
-		v1.POST("/patients", h.CreatePatient)
-		v1.GET("/patients", h.ListPatients)
+		// Usuarios (Profesionales y Clientes)
+		v1.POST("/professionals", h.CreateProfessional)
+		v1.GET("/professionals", h.ListProfessionals)
+
+		v1.POST("/clients", h.CreateClient)
+		v1.GET("/clients", h.ListClients)
 
 		// Agenda (Eventual y Materializada)
 		v1.POST("/appointments", h.CreateAppointment)
