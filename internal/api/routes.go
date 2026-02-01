@@ -14,15 +14,15 @@ func NewRouter(h *Handler) *gin.Engine {
 		v1.POST("/patients", h.CreatePatient)
 		v1.GET("/patients", h.ListPatients)
 
-		// Agenda
+		// Agenda (Eventual y Materializada)
 		v1.POST("/appointments", h.CreateAppointment)
 		v1.GET("/appointments", h.ListAppointments)
 
-		// Horarios fijos
-		v1.POST("/recurring-slots", h.CreateRecurringSlot)
-		v1.GET("/recurring-slots", h.ListRecurringSlots)
+		// Reglas de Recurrencia (Contratos fijos)
+		v1.POST("/recurring-rules", h.CreateRecurringRule)
+		v1.GET("/recurring-rules", h.ListRecurringRules)
 
-		// Bloques de trabajo
+		// Bloques de trabajo (Disponibilidad / Configuración)
 		v1.POST("/schedule", h.UpdateSchedule)
 		v1.GET("/schedule", h.ListSchedule)
 	}

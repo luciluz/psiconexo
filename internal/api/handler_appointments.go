@@ -16,7 +16,8 @@ type createAppointmentDTO struct {
 	Duration       int    `json:"duration" binding:"required,gt=0"`
 }
 
-type createRecurringSlotDTO struct {
+// Renombramos DTO para reflejar que es una Regla
+type createRecurringRuleDTO struct {
 	PsychologistID int64  `json:"psychologist_id" binding:"required"`
 	PatientID      int64  `json:"patient_id" binding:"required"`
 	DayOfWeek      int    `json:"day_of_week" binding:"required,min=1,max=7"`
@@ -43,6 +44,7 @@ func (h *Handler) CreateAppointment(c *gin.Context) {
 		Date:           parsedDate,
 		StartTime:      req.StartTime,
 		Duration:       req.Duration,
+		// RecurringRuleID va implícito como nil en el servicio para turnos manuales
 	})
 
 	if err != nil {
@@ -55,11 +57,7 @@ func (h *Handler) CreateAppointment(c *gin.Context) {
 
 func (h *Handler) ListAppointments(c *gin.Context) {
 
-	psyIDStr := c.Query("psychologist_id")
-	startStr := c.Query("start_date")
-	endStr := c.Query("end_date")
-
-	if psyIDStr == "" || startStr == "" || endStr == "" {
+	if c.Query("psychologist_id") == "" || c.Query("start_date") == "" || c.Query("end_date") == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "faltan parámetros requeridos: psychologist_id, start_date, end_date"})
 		return
 	}
@@ -93,15 +91,16 @@ func (h *Handler) ListAppointments(c *gin.Context) {
 	c.JSON(http.StatusOK, appts)
 }
 
-func (h *Handler) CreateRecurringSlot(c *gin.Context) {
-
-	var req createRecurringSlotDTO
+// Renombrado: CreateRecurringSlot -> CreateRecurringRule
+func (h *Handler) CreateRecurringRule(c *gin.Context) {
+	var req createRecurringRuleDTO
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	slot, err := h.svc.CreateRecurringSlot(c.Request.Context(), service.CreateRecurringSlotRequest{
+	// Llamamos al servicio (que internamente creará la regla Y generará los turnos futuros)
+	rule, err := h.svc.CreateRecurringRule(c.Request.Context(), service.CreateRecurringRuleRequest{
 		PsychologistID: req.PsychologistID,
 		PatientID:      req.PatientID,
 		DayOfWeek:      req.DayOfWeek,
@@ -114,12 +113,12 @@ func (h *Handler) CreateRecurringSlot(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, slot)
+	c.JSON(http.StatusCreated, rule)
 }
 
-func (h *Handler) ListRecurringSlots(c *gin.Context) {
-	psyIDStr := c.Query("psychologist_id")
-	if psyIDStr == "" {
+// Renombrado: ListRecurringSlots -> ListRecurringRules
+func (h *Handler) ListRecurringRules(c *gin.Context) {
+	if c.Query("psychologist_id") == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "falta psychologist_id"})
 		return
 	}
@@ -133,11 +132,11 @@ func (h *Handler) ListRecurringSlots(c *gin.Context) {
 		return
 	}
 
-	slots, err := h.svc.ListRecurringSlots(c.Request.Context(), req.PsychologistID)
+	rules, err := h.svc.ListRecurringRules(c.Request.Context(), req.PsychologistID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, slots)
+	c.JSON(http.StatusOK, rules)
 }

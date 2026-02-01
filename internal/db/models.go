@@ -18,6 +18,7 @@ type Appointment struct {
 	DurationMinutes   int64          `json:"duration_minutes"`
 	Status            sql.NullString `json:"status"`
 	RescheduledFromID sql.NullInt64  `json:"rescheduled_from_id"`
+	RecurringRuleID   sql.NullInt64  `json:"recurring_rule_id"`
 	CreatedAt         sql.NullTime   `json:"created_at"`
 	UpdatedAt         sql.NullTime   `json:"updated_at"`
 }
@@ -41,13 +42,15 @@ type Psychologist struct {
 	CreatedAt               sql.NullTime   `json:"created_at"`
 }
 
-type RecurringSlot struct {
+type RecurringRule struct {
 	ID              int64        `json:"id"`
 	PsychologistID  int64        `json:"psychologist_id"`
 	PatientID       int64        `json:"patient_id"`
 	DayOfWeek       int64        `json:"day_of_week"`
 	StartTime       string       `json:"start_time"`
 	DurationMinutes int64        `json:"duration_minutes"`
+	Active          sql.NullBool `json:"active"`
+	StartDate       sql.NullTime `json:"start_date"`
 	CreatedAt       sql.NullTime `json:"created_at"`
 }
 

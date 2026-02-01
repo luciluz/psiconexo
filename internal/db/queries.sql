@@ -33,7 +33,7 @@ ORDER BY name;
 SELECT * FROM patients WHERE id = ? LIMIT 1;
 
 
--- SECTION: Schedule Configuration
+-- SECTION: Schedule Configuration (Availability)
 -- name: CreateScheduleConfig :one
 INSERT INTO schedule_configs (psychologist_id, day_of_week, start_time, end_time)
 VALUES (?, ?, ?, ?)
@@ -48,36 +48,47 @@ ORDER BY day_of_week, start_time;
 DELETE FROM schedule_configs WHERE psychologist_id = ?;
 
 
--- SECTION: Recurring Slots (Weekly Contracts)
--- name: CreateRecurringSlot :one
-INSERT INTO recurring_slots (psychologist_id, patient_id, day_of_week, start_time, duration_minutes)
-VALUES (?, ?, ?, ?, ?)
+-- SECTION: Recurring Rules (Formerly Recurring Slots)
+-- name: CreateRecurringRule :one
+INSERT INTO recurring_rules (psychologist_id, patient_id, day_of_week, start_time, duration_minutes, active)
+VALUES (?, ?, ?, ?, ?, TRUE)
 RETURNING *;
 
--- name: ListRecurringSlots :many
+-- name: ListRecurringRules :many
 SELECT r.*, p.name as patient_name
-FROM recurring_slots r
+FROM recurring_rules r
 JOIN patients p ON r.patient_id = p.id
 WHERE r.psychologist_id = ?
 ORDER BY r.day_of_week, r.start_time;
 
--- name: GetActiveRecurringSlotsForGeneration :many
-SELECT r.* FROM recurring_slots r
+-- name: GetActiveRecurringRules :many
+-- Usada por el worker para generar turnos futuros.
+-- Solo trae reglas activas de pacientes activos.
+SELECT r.* FROM recurring_rules r
 JOIN patients p ON r.patient_id = p.id
 WHERE r.psychologist_id = ? 
+  AND r.active = TRUE 
   AND p.active = TRUE;
+
+-- name: ToggleRecurringRule :one
+UPDATE recurring_rules
+SET active = ?
+WHERE id = ?
+RETURNING *;
 
 
 -- SECTION: Appointments (Calendar)
 
 -- name: CreateAppointment :one
+-- Ahora aceptamos recurring_rule_id (puede ser NULL para turnos eventuales)
 INSERT INTO appointments (
-    psychologist_id, patient_id, date, start_time, duration_minutes, status, rescheduled_from_id
+    psychologist_id, patient_id, date, start_time, duration_minutes, status, rescheduled_from_id, recurring_rule_id
 )
-VALUES (?, ?, ?, ?, ?, 'scheduled', ?)
+VALUES (?, ?, ?, ?, ?, 'scheduled', ?, ?)
 RETURNING *;
 
 -- name: ListAppointmentsInDateRange :many
+-- Esta query ahora trae TODO (fijos materializados y eventuales)
 SELECT a.*, p.name as patient_name
 FROM appointments a
 JOIN patients p ON a.patient_id = p.id
@@ -101,3 +112,12 @@ RETURNING *;
 
 -- name: GetAppointment :one
 SELECT * FROM appointments WHERE id = ? LIMIT 1;
+
+-- name: CheckAppointmentExistsForRule :one
+-- Query auxiliar para evitar duplicar turnos al correr el script de generación
+SELECT EXISTS(
+    SELECT 1 FROM appointments 
+    WHERE recurring_rule_id = ? 
+    AND date = ?
+    AND status != 'cancelled'
+);

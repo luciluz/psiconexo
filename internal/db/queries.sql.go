@@ -11,13 +11,34 @@ import (
 	"time"
 )
 
+const checkAppointmentExistsForRule = `-- name: CheckAppointmentExistsForRule :one
+SELECT EXISTS(
+    SELECT 1 FROM appointments 
+    WHERE recurring_rule_id = ? 
+    AND date = ?
+    AND status != 'cancelled'
+`
+
+type CheckAppointmentExistsForRuleParams struct {
+	RecurringRuleID sql.NullInt64 `json:"recurring_rule_id"`
+	Date            time.Time     `json:"date"`
+}
+
+// Query auxiliar para evitar duplicar turnos al correr el script de generación
+func (q *Queries) CheckAppointmentExistsForRule(ctx context.Context, arg CheckAppointmentExistsForRuleParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, checkAppointmentExistsForRule, arg.RecurringRuleID, arg.Date)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createAppointment = `-- name: CreateAppointment :one
 
 INSERT INTO appointments (
-    psychologist_id, patient_id, date, start_time, duration_minutes, status, rescheduled_from_id
+    psychologist_id, patient_id, date, start_time, duration_minutes, status, rescheduled_from_id, recurring_rule_id
 )
-VALUES (?, ?, ?, ?, ?, 'scheduled', ?)
-RETURNING id, psychologist_id, patient_id, date, start_time, duration_minutes, status, rescheduled_from_id, created_at, updated_at
+VALUES (?, ?, ?, ?, ?, 'scheduled', ?, ?)
+RETURNING id, psychologist_id, patient_id, date, start_time, duration_minutes, status, rescheduled_from_id, recurring_rule_id, created_at, updated_at
 `
 
 type CreateAppointmentParams struct {
@@ -27,9 +48,11 @@ type CreateAppointmentParams struct {
 	StartTime         string        `json:"start_time"`
 	DurationMinutes   int64         `json:"duration_minutes"`
 	RescheduledFromID sql.NullInt64 `json:"rescheduled_from_id"`
+	RecurringRuleID   sql.NullInt64 `json:"recurring_rule_id"`
 }
 
 // SECTION: Appointments (Calendar)
+// Ahora aceptamos recurring_rule_id (puede ser NULL para turnos eventuales)
 func (q *Queries) CreateAppointment(ctx context.Context, arg CreateAppointmentParams) (Appointment, error) {
 	row := q.db.QueryRowContext(ctx, createAppointment,
 		arg.PsychologistID,
@@ -38,6 +61,7 @@ func (q *Queries) CreateAppointment(ctx context.Context, arg CreateAppointmentPa
 		arg.StartTime,
 		arg.DurationMinutes,
 		arg.RescheduledFromID,
+		arg.RecurringRuleID,
 	)
 	var i Appointment
 	err := row.Scan(
@@ -49,6 +73,7 @@ func (q *Queries) CreateAppointment(ctx context.Context, arg CreateAppointmentPa
 		&i.DurationMinutes,
 		&i.Status,
 		&i.RescheduledFromID,
+		&i.RecurringRuleID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -122,13 +147,13 @@ func (q *Queries) CreatePsychologist(ctx context.Context, arg CreatePsychologist
 	return i, err
 }
 
-const createRecurringSlot = `-- name: CreateRecurringSlot :one
-INSERT INTO recurring_slots (psychologist_id, patient_id, day_of_week, start_time, duration_minutes)
-VALUES (?, ?, ?, ?, ?)
-RETURNING id, psychologist_id, patient_id, day_of_week, start_time, duration_minutes, created_at
+const createRecurringRule = `-- name: CreateRecurringRule :one
+INSERT INTO recurring_rules (psychologist_id, patient_id, day_of_week, start_time, duration_minutes, active)
+VALUES (?, ?, ?, ?, ?, TRUE)
+RETURNING id, psychologist_id, patient_id, day_of_week, start_time, duration_minutes, active, start_date, created_at
 `
 
-type CreateRecurringSlotParams struct {
+type CreateRecurringRuleParams struct {
 	PsychologistID  int64  `json:"psychologist_id"`
 	PatientID       int64  `json:"patient_id"`
 	DayOfWeek       int64  `json:"day_of_week"`
@@ -136,16 +161,16 @@ type CreateRecurringSlotParams struct {
 	DurationMinutes int64  `json:"duration_minutes"`
 }
 
-// SECTION: Recurring Slots (Weekly Contracts)
-func (q *Queries) CreateRecurringSlot(ctx context.Context, arg CreateRecurringSlotParams) (RecurringSlot, error) {
-	row := q.db.QueryRowContext(ctx, createRecurringSlot,
+// SECTION: Recurring Rules (Formerly Recurring Slots)
+func (q *Queries) CreateRecurringRule(ctx context.Context, arg CreateRecurringRuleParams) (RecurringRule, error) {
+	row := q.db.QueryRowContext(ctx, createRecurringRule,
 		arg.PsychologistID,
 		arg.PatientID,
 		arg.DayOfWeek,
 		arg.StartTime,
 		arg.DurationMinutes,
 	)
-	var i RecurringSlot
+	var i RecurringRule
 	err := row.Scan(
 		&i.ID,
 		&i.PsychologistID,
@@ -153,6 +178,8 @@ func (q *Queries) CreateRecurringSlot(ctx context.Context, arg CreateRecurringSl
 		&i.DayOfWeek,
 		&i.StartTime,
 		&i.DurationMinutes,
+		&i.Active,
+		&i.StartDate,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -171,7 +198,7 @@ type CreateScheduleConfigParams struct {
 	EndTime        string `json:"end_time"`
 }
 
-// SECTION: Schedule Configuration
+// SECTION: Schedule Configuration (Availability)
 func (q *Queries) CreateScheduleConfig(ctx context.Context, arg CreateScheduleConfigParams) (ScheduleConfig, error) {
 	row := q.db.QueryRowContext(ctx, createScheduleConfig,
 		arg.PsychologistID,
@@ -200,22 +227,25 @@ func (q *Queries) DeleteScheduleConfigs(ctx context.Context, psychologistID int6
 	return err
 }
 
-const getActiveRecurringSlotsForGeneration = `-- name: GetActiveRecurringSlotsForGeneration :many
-SELECT r.id, r.psychologist_id, r.patient_id, r.day_of_week, r.start_time, r.duration_minutes, r.created_at FROM recurring_slots r
+const getActiveRecurringRules = `-- name: GetActiveRecurringRules :many
+SELECT r.id, r.psychologist_id, r.patient_id, r.day_of_week, r.start_time, r.duration_minutes, r.active, r.start_date, r.created_at FROM recurring_rules r
 JOIN patients p ON r.patient_id = p.id
 WHERE r.psychologist_id = ? 
+  AND r.active = TRUE 
   AND p.active = TRUE
 `
 
-func (q *Queries) GetActiveRecurringSlotsForGeneration(ctx context.Context, psychologistID int64) ([]RecurringSlot, error) {
-	rows, err := q.db.QueryContext(ctx, getActiveRecurringSlotsForGeneration, psychologistID)
+// Usada por el worker para generar turnos futuros.
+// Solo trae reglas activas de pacientes activos.
+func (q *Queries) GetActiveRecurringRules(ctx context.Context, psychologistID int64) ([]RecurringRule, error) {
+	rows, err := q.db.QueryContext(ctx, getActiveRecurringRules, psychologistID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []RecurringSlot
+	var items []RecurringRule
 	for rows.Next() {
-		var i RecurringSlot
+		var i RecurringRule
 		if err := rows.Scan(
 			&i.ID,
 			&i.PsychologistID,
@@ -223,6 +253,8 @@ func (q *Queries) GetActiveRecurringSlotsForGeneration(ctx context.Context, psyc
 			&i.DayOfWeek,
 			&i.StartTime,
 			&i.DurationMinutes,
+			&i.Active,
+			&i.StartDate,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -239,7 +271,7 @@ func (q *Queries) GetActiveRecurringSlotsForGeneration(ctx context.Context, psyc
 }
 
 const getAppointment = `-- name: GetAppointment :one
-SELECT id, psychologist_id, patient_id, date, start_time, duration_minutes, status, rescheduled_from_id, created_at, updated_at FROM appointments WHERE id = ? LIMIT 1
+SELECT id, psychologist_id, patient_id, date, start_time, duration_minutes, status, rescheduled_from_id, recurring_rule_id, created_at, updated_at FROM appointments WHERE id = ? LIMIT 1
 `
 
 func (q *Queries) GetAppointment(ctx context.Context, id int64) (Appointment, error) {
@@ -254,6 +286,7 @@ func (q *Queries) GetAppointment(ctx context.Context, id int64) (Appointment, er
 		&i.DurationMinutes,
 		&i.Status,
 		&i.RescheduledFromID,
+		&i.RecurringRuleID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -365,7 +398,7 @@ func (q *Queries) GetPsychologistSettings(ctx context.Context, id int64) (GetPsy
 }
 
 const listAppointmentsInDateRange = `-- name: ListAppointmentsInDateRange :many
-SELECT a.id, a.psychologist_id, a.patient_id, a.date, a.start_time, a.duration_minutes, a.status, a.rescheduled_from_id, a.created_at, a.updated_at, p.name as patient_name
+SELECT a.id, a.psychologist_id, a.patient_id, a.date, a.start_time, a.duration_minutes, a.status, a.rescheduled_from_id, a.recurring_rule_id, a.created_at, a.updated_at, p.name as patient_name
 FROM appointments a
 JOIN patients p ON a.patient_id = p.id
 WHERE a.psychologist_id = ? 
@@ -389,11 +422,13 @@ type ListAppointmentsInDateRangeRow struct {
 	DurationMinutes   int64          `json:"duration_minutes"`
 	Status            sql.NullString `json:"status"`
 	RescheduledFromID sql.NullInt64  `json:"rescheduled_from_id"`
+	RecurringRuleID   sql.NullInt64  `json:"recurring_rule_id"`
 	CreatedAt         sql.NullTime   `json:"created_at"`
 	UpdatedAt         sql.NullTime   `json:"updated_at"`
 	PatientName       string         `json:"patient_name"`
 }
 
+// Esta query ahora trae TODO (fijos materializados y eventuales)
 func (q *Queries) ListAppointmentsInDateRange(ctx context.Context, arg ListAppointmentsInDateRangeParams) ([]ListAppointmentsInDateRangeRow, error) {
 	rows, err := q.db.QueryContext(ctx, listAppointmentsInDateRange, arg.PsychologistID, arg.Date, arg.Date_2)
 	if err != nil {
@@ -412,6 +447,7 @@ func (q *Queries) ListAppointmentsInDateRange(ctx context.Context, arg ListAppoi
 			&i.DurationMinutes,
 			&i.Status,
 			&i.RescheduledFromID,
+			&i.RecurringRuleID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.PatientName,
@@ -506,34 +542,36 @@ func (q *Queries) ListPsychologists(ctx context.Context) ([]ListPsychologistsRow
 	return items, nil
 }
 
-const listRecurringSlots = `-- name: ListRecurringSlots :many
-SELECT r.id, r.psychologist_id, r.patient_id, r.day_of_week, r.start_time, r.duration_minutes, r.created_at, p.name as patient_name
-FROM recurring_slots r
+const listRecurringRules = `-- name: ListRecurringRules :many
+SELECT r.id, r.psychologist_id, r.patient_id, r.day_of_week, r.start_time, r.duration_minutes, r.active, r.start_date, r.created_at, p.name as patient_name
+FROM recurring_rules r
 JOIN patients p ON r.patient_id = p.id
 WHERE r.psychologist_id = ?
 ORDER BY r.day_of_week, r.start_time
 `
 
-type ListRecurringSlotsRow struct {
+type ListRecurringRulesRow struct {
 	ID              int64        `json:"id"`
 	PsychologistID  int64        `json:"psychologist_id"`
 	PatientID       int64        `json:"patient_id"`
 	DayOfWeek       int64        `json:"day_of_week"`
 	StartTime       string       `json:"start_time"`
 	DurationMinutes int64        `json:"duration_minutes"`
+	Active          sql.NullBool `json:"active"`
+	StartDate       sql.NullTime `json:"start_date"`
 	CreatedAt       sql.NullTime `json:"created_at"`
 	PatientName     string       `json:"patient_name"`
 }
 
-func (q *Queries) ListRecurringSlots(ctx context.Context, psychologistID int64) ([]ListRecurringSlotsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listRecurringSlots, psychologistID)
+func (q *Queries) ListRecurringRules(ctx context.Context, psychologistID int64) ([]ListRecurringRulesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listRecurringRules, psychologistID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListRecurringSlotsRow
+	var items []ListRecurringRulesRow
 	for rows.Next() {
-		var i ListRecurringSlotsRow
+		var i ListRecurringRulesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.PsychologistID,
@@ -541,6 +579,8 @@ func (q *Queries) ListRecurringSlots(ctx context.Context, psychologistID int64) 
 			&i.DayOfWeek,
 			&i.StartTime,
 			&i.DurationMinutes,
+			&i.Active,
+			&i.StartDate,
 			&i.CreatedAt,
 			&i.PatientName,
 		); err != nil {
@@ -593,11 +633,40 @@ func (q *Queries) ListScheduleConfigs(ctx context.Context, psychologistID int64)
 	return items, nil
 }
 
+const toggleRecurringRule = `-- name: ToggleRecurringRule :one
+UPDATE recurring_rules
+SET active = ?
+WHERE id = ?
+RETURNING id, psychologist_id, patient_id, day_of_week, start_time, duration_minutes, active, start_date, created_at
+`
+
+type ToggleRecurringRuleParams struct {
+	Active sql.NullBool `json:"active"`
+	ID     int64        `json:"id"`
+}
+
+func (q *Queries) ToggleRecurringRule(ctx context.Context, arg ToggleRecurringRuleParams) (RecurringRule, error) {
+	row := q.db.QueryRowContext(ctx, toggleRecurringRule, arg.Active, arg.ID)
+	var i RecurringRule
+	err := row.Scan(
+		&i.ID,
+		&i.PsychologistID,
+		&i.PatientID,
+		&i.DayOfWeek,
+		&i.StartTime,
+		&i.DurationMinutes,
+		&i.Active,
+		&i.StartDate,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const updateAppointmentStatus = `-- name: UpdateAppointmentStatus :one
 UPDATE appointments
 SET status = ?, updated_at = CURRENT_TIMESTAMP
 WHERE id = ?
-RETURNING id, psychologist_id, patient_id, date, start_time, duration_minutes, status, rescheduled_from_id, created_at, updated_at
+RETURNING id, psychologist_id, patient_id, date, start_time, duration_minutes, status, rescheduled_from_id, recurring_rule_id, created_at, updated_at
 `
 
 type UpdateAppointmentStatusParams struct {
@@ -617,6 +686,7 @@ func (q *Queries) UpdateAppointmentStatus(ctx context.Context, arg UpdateAppoint
 		&i.DurationMinutes,
 		&i.Status,
 		&i.RescheduledFromID,
+		&i.RecurringRuleID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
