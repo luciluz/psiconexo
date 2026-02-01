@@ -20,6 +20,7 @@ func NewRouter(h *Handler) *gin.Engine {
 
 		// Horarios fijos
 		v1.POST("/recurring-slots", h.CreateRecurringSlot)
+		v1.GET("/recurring-slots", h.ListRecurringSlots)
 
 		// Bloques de trabajo
 		v1.POST("/schedule", h.UpdateSchedule)

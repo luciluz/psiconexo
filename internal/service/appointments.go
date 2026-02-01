@@ -104,3 +104,11 @@ func (s *Service) CreateRecurringSlot(ctx context.Context, req CreateRecurringSl
 
 	return &slot, nil
 }
+
+func (s *Service) ListRecurringSlots(ctx context.Context, psyID int64) ([]db.ListRecurringSlotsRow, error) {
+	slots, err := s.queries.ListRecurringSlots(ctx, psyID)
+	if err != nil {
+		return nil, fmt.Errorf("error obteniendo horarios fijos: %w", err)
+	}
+	return slots, nil
+}

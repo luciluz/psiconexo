@@ -116,3 +116,28 @@ func (h *Handler) CreateRecurringSlot(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, slot)
 }
+
+func (h *Handler) ListRecurringSlots(c *gin.Context) {
+	psyIDStr := c.Query("psychologist_id")
+	if psyIDStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "falta psychologist_id"})
+		return
+	}
+
+	var req struct {
+		PsychologistID int64 `form:"psychologist_id" binding:"required"`
+	}
+
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	slots, err := h.svc.ListRecurringSlots(c.Request.Context(), req.PsychologistID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, slots)
+}
