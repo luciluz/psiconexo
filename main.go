@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"log"
+	"os"
 
 	"github.com/luciluz/psiconexo/internal/api"
 	"github.com/luciluz/psiconexo/internal/db"
@@ -22,6 +23,17 @@ func main() {
 	if _, err := conn.Exec("PRAGMA foreign_keys = ON;"); err != nil {
 		log.Fatal(err)
 	}
+
+	log.Println("Verificando estructura de base de datos...")
+	schema, err := os.ReadFile("internal/db/schema.sql")
+	if err != nil {
+		log.Fatal("Error leyendo el archivo schema.sql: ", err)
+	}
+
+	if _, err := conn.Exec(string(schema)); err != nil {
+		log.Fatal("Error ejecutando schema.sql: ", err)
+	}
+	log.Println("Base de datos lista.")
 
 	queries := db.New(conn)
 	svc := service.NewService(queries, conn)
