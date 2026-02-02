@@ -23,7 +23,9 @@ func (s *Service) UpdateSchedule(ctx context.Context, req UpdateScheduleRequest)
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() {
+		_ = tx.Rollback()
+	}()
 
 	qtx := s.queries.WithTx(tx)
 

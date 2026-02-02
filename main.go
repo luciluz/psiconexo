@@ -25,7 +25,9 @@ func main() {
 	if err != nil {
 		log.Fatal("Error abriendo conexión a DB:", err)
 	}
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 
 	// 3. Verificamos que la base de datos responda (Ping)
 	if err := conn.Ping(); err != nil {
