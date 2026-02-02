@@ -118,7 +118,7 @@ CREATE TABLE IF NOT EXISTS clinical_notes (
 );
 
 -- ÍNDICES
-CREATE INDEX idx_appointments_calendar ON appointments(professional_id, date);
-CREATE INDEX idx_clients_professional ON clients(professional_id);
-CREATE INDEX idx_appointments_rule ON appointments(recurring_rule_id);
-CREATE INDEX idx_notes_client ON clinical_notes(client_id);
+CREATE INDEX IF NOT EXISTS idx_appointments_calendar ON appointments(professional_id, date);
+CREATE INDEX IF NOT EXISTS idx_clients_professional ON clients(professional_id);
+CREATE INDEX IF NOT EXISTS idx_appointments_rule ON appointments(recurring_rule_id);
+CREATE INDEX IF NOT EXISTS idx_notes_client ON clinical_notes(client_id);
