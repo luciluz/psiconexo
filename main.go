@@ -9,15 +9,14 @@ import (
 	"github.com/luciluz/psiconexo/internal/db"
 	"github.com/luciluz/psiconexo/internal/service"
 
-	_ "github.com/lib/pq" // <--- CAMBIO CLAVE: Driver de Postgres
+	_ "github.com/lib/pq"
 )
 
 func main() {
-	// 1. Leemos la URL de conexión desde las variables de entorno (definidas en Docker)
-	// Si no existe (ej: ejecutando local sin docker), usamos un default para desarrollo.
+
 	dbSource := os.Getenv("DB_SOURCE")
 	if dbSource == "" {
-		dbSource = "postgres://psico_user:psico_password@localhost:5432/psiconexo?sslmode=disable"
+		log.Fatal("FATAL: La variable de entorno DB_SOURCE es obligatoria.")
 	}
 
 	// 2. Abrimos la conexión con el driver "postgres"
