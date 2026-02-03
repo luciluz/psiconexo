@@ -10,40 +10,57 @@ import (
 )
 
 type Appointment struct {
-	ID                int64          `json:"id"`
-	ProfessionalID    int64          `json:"professional_id"`
-	ClientID          int64          `json:"client_id"`
-	Date              time.Time      `json:"date"`
-	StartTime         string         `json:"start_time"`
-	DurationMinutes   int32          `json:"duration_minutes"`
-	Notes             sql.NullString `json:"notes"`
-	Price             sql.NullString `json:"price"`
-	Status            sql.NullString `json:"status"`
-	RescheduledFromID sql.NullInt64  `json:"rescheduled_from_id"`
-	RecurringRuleID   sql.NullInt64  `json:"recurring_rule_id"`
-	CreatedAt         sql.NullTime   `json:"created_at"`
-	UpdatedAt         sql.NullTime   `json:"updated_at"`
+	ID                 int64          `json:"id"`
+	ProfessionalID     int64          `json:"professional_id"`
+	ClientID           int64          `json:"client_id"`
+	Date               time.Time      `json:"date"`
+	StartTime          string         `json:"start_time"`
+	DurationMinutes    int32          `json:"duration_minutes"`
+	Status             sql.NullString `json:"status"`
+	Modality           sql.NullString `json:"modality"`
+	MeetingUrl         sql.NullString `json:"meeting_url"`
+	Price              sql.NullString `json:"price"`
+	Concept            sql.NullString `json:"concept"`
+	PaymentStatus      sql.NullString `json:"payment_status"`
+	PaymentMethod      sql.NullString `json:"payment_method"`
+	PaymentProofUrl    sql.NullString `json:"payment_proof_url"`
+	PaymentConfirmedAt sql.NullTime   `json:"payment_confirmed_at"`
+	InvoiceStatus      sql.NullString `json:"invoice_status"`
+	InvoiceUrl         sql.NullString `json:"invoice_url"`
+	InvoiceCae         sql.NullString `json:"invoice_cae"`
+	Notes              sql.NullString `json:"notes"`
+	RescheduledFromID  sql.NullInt64  `json:"rescheduled_from_id"`
+	RecurringRuleID    sql.NullInt64  `json:"recurring_rule_id"`
+	CreatedAt          sql.NullTime   `json:"created_at"`
+	UpdatedAt          sql.NullTime   `json:"updated_at"`
 }
 
 type Client struct {
-	ID             int64          `json:"id"`
-	Name           string         `json:"name"`
-	ProfessionalID int64          `json:"professional_id"`
-	Email          sql.NullString `json:"email"`
-	Phone          sql.NullString `json:"phone"`
-	Active         sql.NullBool   `json:"active"`
-	CreatedAt      sql.NullTime   `json:"created_at"`
+	ID                    int64          `json:"id"`
+	ProfessionalID        int64          `json:"professional_id"`
+	Name                  string         `json:"name"`
+	Email                 sql.NullString `json:"email"`
+	Phone                 sql.NullString `json:"phone"`
+	BirthDate             sql.NullTime   `json:"birth_date"`
+	Medications           sql.NullString `json:"medications"`
+	EmergencyContactName  sql.NullString `json:"emergency_contact_name"`
+	EmergencyContactPhone sql.NullString `json:"emergency_contact_phone"`
+	Active                sql.NullBool   `json:"active"`
+	CreatedAt             sql.NullTime   `json:"created_at"`
 }
 
 type ClinicalNote struct {
-	ID             int64         `json:"id"`
-	ProfessionalID int64         `json:"professional_id"`
-	ClientID       int64         `json:"client_id"`
-	AppointmentID  sql.NullInt64 `json:"appointment_id"`
-	Content        string        `json:"content"`
-	IsEncrypted    sql.NullBool  `json:"is_encrypted"`
-	CreatedAt      sql.NullTime  `json:"created_at"`
-	UpdatedAt      sql.NullTime  `json:"updated_at"`
+	ID             int64          `json:"id"`
+	ProfessionalID int64          `json:"professional_id"`
+	ClientID       int64          `json:"client_id"`
+	AppointmentID  sql.NullInt64  `json:"appointment_id"`
+	Type           sql.NullString `json:"type"`
+	Content        string         `json:"content"`
+	KeyVersion     sql.NullInt32  `json:"key_version"`
+	Status         sql.NullString `json:"status"`
+	SignedAt       sql.NullTime   `json:"signed_at"`
+	CreatedAt      sql.NullTime   `json:"created_at"`
+	UpdatedAt      sql.NullTime   `json:"updated_at"`
 }
 
 type Professional struct {
@@ -51,18 +68,37 @@ type Professional struct {
 	Name                    string         `json:"name"`
 	Email                   string         `json:"email"`
 	Phone                   sql.NullString `json:"phone"`
+	Slug                    sql.NullString `json:"slug"`
+	PhotoUrl                sql.NullString `json:"photo_url"`
+	Title                   sql.NullString `json:"title"`
+	LicenseNumber           sql.NullString `json:"license_number"`
+	Bio                     sql.NullString `json:"bio"`
 	CancellationWindowHours sql.NullInt32  `json:"cancellation_window_hours"`
+	EmailVerifiedAt         sql.NullTime   `json:"email_verified_at"`
 	CreatedAt               sql.NullTime   `json:"created_at"`
 }
 
 type ProfessionalSetting struct {
-	ProfessionalID         int64         `json:"professional_id"`
-	DefaultDurationMinutes sql.NullInt32 `json:"default_duration_minutes"`
-	BufferMinutes          sql.NullInt32 `json:"buffer_minutes"`
-	TimeIncrementMinutes   sql.NullInt32 `json:"time_increment_minutes"`
-	MinBookingNoticeHours  sql.NullInt32 `json:"min_booking_notice_hours"`
-	MaxDailyAppointments   sql.NullInt32 `json:"max_daily_appointments"`
-	UpdatedAt              sql.NullTime  `json:"updated_at"`
+	ProfessionalID         int64          `json:"professional_id"`
+	DefaultDurationMinutes sql.NullInt32  `json:"default_duration_minutes"`
+	DefaultPrice           sql.NullString `json:"default_price"`
+	BufferMinutes          sql.NullInt32  `json:"buffer_minutes"`
+	TimeIncrementMinutes   sql.NullInt32  `json:"time_increment_minutes"`
+	BankCbu                sql.NullString `json:"bank_cbu"`
+	BankAlias              sql.NullString `json:"bank_alias"`
+	BankName               sql.NullString `json:"bank_name"`
+	BankHolderName         sql.NullString `json:"bank_holder_name"`
+	SendAliasByEmail       sql.NullBool   `json:"send_alias_by_email"`
+	MpAccessToken          sql.NullString `json:"mp_access_token"`
+	MpUserID               sql.NullString `json:"mp_user_id"`
+	AfipCrtUrl             sql.NullString `json:"afip_crt_url"`
+	AfipKeyUrl             sql.NullString `json:"afip_key_url"`
+	AfipPointOfSale        sql.NullInt32  `json:"afip_point_of_sale"`
+	NotifyByEmail          sql.NullBool   `json:"notify_by_email"`
+	NotifyByWhatsapp       sql.NullBool   `json:"notify_by_whatsapp"`
+	MinBookingNoticeHours  sql.NullInt32  `json:"min_booking_notice_hours"`
+	MaxDailyAppointments   sql.NullInt32  `json:"max_daily_appointments"`
+	UpdatedAt              sql.NullTime   `json:"updated_at"`
 }
 
 type RecurringRule struct {
@@ -72,6 +108,7 @@ type RecurringRule struct {
 	DayOfWeek       int32          `json:"day_of_week"`
 	StartTime       string         `json:"start_time"`
 	DurationMinutes int32          `json:"duration_minutes"`
+	Modality        sql.NullString `json:"modality"`
 	Price           sql.NullString `json:"price"`
 	Active          sql.NullBool   `json:"active"`
 	StartDate       sql.NullTime   `json:"start_date"`
